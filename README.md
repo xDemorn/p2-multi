@@ -64,7 +64,7 @@ docker compose up --build
 
 ## Desplegar a Render
 
-`render.yaml` defineix dos serveis web (client i servidor) i un disc persistent d'1 GB pel servidor.
+`render.yaml` defineix dos serveis web (client i servidor) i un disc persistent d'1 GB pel servidor. Tots dos estan a `region: frankfurt`; canvia-ho abans del primer desplegament si vols una altra regió.
 
 1. Puja els canvis al repositori.
 2. A Render, crea un **Blueprint** i selecciona la branca `mejoras-backend`.

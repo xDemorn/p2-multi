@@ -2,8 +2,9 @@ services:
   - type: web
     name: iso-server
     runtime: docker
-    branch: main
+    branch: mejoras-backend
     plan: starter
+    region: frankfurt
     dockerContext: .
     dockerfilePath: ./server/Dockerfile
     healthCheckPath: /healthz
@@ -29,8 +30,9 @@ services:
   - type: web
     name: iso-client
     runtime: docker
-    branch: main
+    branch: mejoras-backend
     plan: free
+    region: frankfurt
     dockerContext: ./client
     dockerfilePath: ./client/Dockerfile
     healthCheckPath: /
