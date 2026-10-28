@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <!-- dades tècniques de la pàgina -->
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Inici de sessió</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mòbils -->
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <!-- estètica de la pàgina -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <!-- per afegir interactivitat a la pàgina -->
+    <script defer src="js/login.js"></script>
+</head>
+
+<body class="auth-page login-page">
+    <!-- contingut visible de la pàgina -->
+    <main class="auth-shell login-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+            <div class="auth-feedback"></div>
+        </header>
+        <section class="auth-form-section">
+            <form id="login-form" class="auth-card login-card">
+                <img class="auth-illustration login-illustration" src="/images/login.png" alt="" aria-hidden="true">
+                <header>
+                    <h2>Inici de sessió</h2>
+                </header>
+                <label for="login_username">Nom d'usuari</label>
+                <input id="login_username" type="text" name="user_name" required value="miki" />
+                <label for="login_password">Contrasenya</label>
+                <input id="login_password" type="password" name="user_password" required value="patata" />
+                <% /* <p class="forgot-link"><a href="/forgot">He oblidat la contrasenya</a></p> */ %>
+            </form>
+            <button class="animated-submit login-submit" name="login" onclick=login()>
+                <span class="button-label">Iniciar sessió</span>
+            </button>
+        </section>
+        <section class="auth-switch">
+            <a href="/register">Registra un nou compte</a>
+        </section>
+    </main>
+</body>
+
+</html>

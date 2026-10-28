@@ -1,0 +1,30 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      PORT: 2567
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      COOKIE_SECURE: development
+      CLIENT_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
+      DB_PATH: /data/data.db
+      UPLOAD_DIR: /data/uploads
+    ports:
+      - "2567:2567"
+    volumes:
+      - iso-data:/data
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    environment:
+      SERVER_URL: http://localhost:2567
+    ports:
+      - "8080:10000"
+    depends_on:
+      - server
+
+volumes:
+  iso-data:

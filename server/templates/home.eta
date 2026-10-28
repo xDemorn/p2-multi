@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <!-- dades tècniques de la pàgina -->
+    <meta charset="utf-8">
+    <title>La meva pàgina</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mòbils -->
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <!-- estètica de la pàgina -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/mvp.css">
+    <link rel="stylesheet" href="/el_meu.css">
+    <!-- per afegir interactivitat a la pàgina -->
+    <script defer src="/el_meu.js"></script>
+</head>
+
+<body class="home-page">
+    <!-- contingut visible de la pàgina -->
+    <main class="home-content">
+        <header class="home-header">
+            <img class="home-logo" src="/images/home.png" alt="Dos gats davant d'un ordinador">
+            <h1>La meva pàgina</h1>
+            <% /* <div class="home-feedback">feedback</div> */ %>
+        </header>
+        <section class="home-actions">
+            <% if (it.user) { %>
+                <a class="home-action home-delete" href="/delete">
+                    <img class="home-cat" src="/images/eliminar.png">
+                    <span>Eliminar compte</span>
+                </a>
+                <a class="home-action home-edit" href="/profile">
+                    <img class="home-cat" src="/images/register.png">
+                    <span>Editar perfil</span>
+                </a>
+                <a class="home-action home-login" onclick="logout()">
+                    <img class="home-cat" src="/images/login.png">
+                    <span>Tancar sessió</span>
+                </a>
+            <% } else { %>
+                <a class="home-action home-login" href="/login">
+                    <img class="home-cat" src="/images/login.png">
+                    <span>Identificar-me</span>
+                </a>
+            <% } %>
+        </section>
+    </main>
+</body>
+
+</html>

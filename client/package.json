@@ -1,0 +1,16 @@
+{
+  "name": "iso-client",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "colyseus.js": "^0.16.0",
+    "pixi-tiledmap": "^2.11.0",
+    "pixi.js": "^8.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

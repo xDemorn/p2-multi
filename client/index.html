@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harry Popotter</title>
+  <style>
+    body {
+      margin: 0;
+      background: #141821;
+      color: #e8ecf4;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    input,
+    button {
+      font: inherit;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #3a4258;
+      background: #1e2431;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: #2a3347;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: default;
+    }
+
+    #teams {
+      display: grid;
+      grid-template-columns: repeat(3, 160px);
+      gap: 12px;
+    }
+
+    .team {
+      height: 80px;
+      border-width: 3px;
+    }
+
+    .team.mine {
+      outline: 3px solid #fff;
+    }
+
+    #msg {
+      color: #ff8b8b;
+      min-height: 1.2em;
+    }
+
+    #hud {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      background: #000a;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+      font-size: 14px;
+    }
+  </style>
+  <script src="/config.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</head>
+
+<body>
+  <div id="menu" class="screen active">
+    <h1>Harry Popotter</h1>
+    <input id="user" placeholder="Username" autocomplete="username">
+    <input id="pass" type="password" placeholder="Password" autocomplete="current-password">
+    <div><button id="login">Log in</button> <button id="register">Register</button></div>
+    <div id="msg"></div>
+  </div>
+  <div id="lobby" class="screen">
+    <h2>Choose your team</h2>
+    <div id="teams"></div>
+    <div id="lobbyInfo"></div>
+  </div>
+  <div id="game"></div>
+  <div id="hud"></div>
+</body>
+
+</html>

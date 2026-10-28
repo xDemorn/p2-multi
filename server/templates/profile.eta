@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <!-- dades tecniques de la pagina -->
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Edicio de detalls</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mobils -->
+    <meta name="description" content="Una plantilla web molt basica per no comencar des de zero">
+    <meta name="author" content="Mikolaj Jaworski">
+    <!-- estetica de la pagina -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <!-- metadades Open Graph -->
+    <meta property="og:title" content="Plantilla basica HTML5">
+    <meta property="og:type" content="website">
+    <meta property="og:description" content="Una plantilla web molt basica per no comencar des de zero">
+    <meta property="og:image" content="og_image.png">
+    <!-- per afegir interactivitat a la pagina -->
+    <script defer src="js/profile.js"></script>
+</head>
+
+<body class="auth-page edit-page">
+    <!-- contingut visible de la pagina -->
+    <main class="auth-shell edit-shell">
+        <header class="auth-heading">
+            <h1><a href="/">La meva pàgina</a></h1>
+            <% /* <div class="auth-feedback">{FEEDBACK}</div> */ %>
+        </header>
+        <section class="auth-form-section">
+            <form class="auth-card edit-card">
+                <img class="auth-illustration edit-illustration" src="/images/register.png" aria-hidden="true">
+                <header>
+                    <h2>Edicio del perfil</h2>
+                </header>
+                <div class="profile-grid">
+                    <div>
+                        <label for="data_username">Nom d'usuari:</label>
+                        <input type="text" id="data_username" name="data_username" value="<%= it.DATA_USERNAME %>" disabled>
+                    </div>
+                    <div>
+                        <label for="data_email">Correu electronic:</label>
+                        <input type="text" id="data_email" name="data_email" value="<%= it.DATA_EMAIL %>" disabled>
+                    </div>
+                    <div>
+                        <label for="data_birthdate">Data de naixement:</label>
+                        <input type="date" id="data_birthdate" name="data_birthdate" value="<%= it.DATA_BIRTHDATE %>" disabled>
+                    </div>
+                    <div>
+                        <label for="data_nickname">Nickname:</label>
+                        <input type="text" id="data_nickname" name="data_nickname" value="<%= it.DATA_NICKNAME %>" required>
+                    </div>
+                </div>
+                <div class="profile-avatar-field">
+                    <label for="data_avatar">Avatar:</label>
+                    <div class="profile-avatar-row">
+                        <img class="profile-avatar-preview" src="<%= it.DATA_AVATAR %>" alt="Avatar actual" width="100" height="100">
+                        <label class="profile-avatar-picker" for="data_avatar">
+                            <span>Tria una imatge o arrossega-la aquí</span>
+                            <input type="file" id="data_avatar" name="data_avatar" accept="image/*">
+                        </label>
+                        <div class="profile-avatar-upload-preview-container" hidden>
+                            <img class="profile-avatar-preview profile-avatar-upload-preview"
+                                alt="Vista prèvia del nou avatar" width="100" height="100">
+                            <button class="profile-avatar-cancel" type="button" aria-label="Cancel·lar nou avatar"
+                                title="Cancel·lar nou avatar">&times;</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-actions">
+                    <button class="animated-submit" name="profile" onclick="updateProfile()" type="button">
+                        <span class="button-label">Actualitzar perfil</span>
+                    </button>
+                    <button class="profile-secondary-action" type="button"
+                        onclick="document.getElementById('change-password-dialog').showModal()">
+                        Canviar contrasenya
+                    </button>
+                </div>
+            </form>
+
+            <dialog class="password-dialog" id="change-password-dialog">
+                <form class="password-dialog-form">
+                    <header>
+                        <h2>Canviar contrasenya</h2>
+                    </header>
+                    <label for="current_password">Contrasenya actual</label>
+                    <input type="password" id="current_password" name="current_password"
+                        autocomplete="current-password" required>
+
+                    <label for="new_password">Nova contrasenya</label>
+                    <input type="password" id="new_password" name="new_password"
+                        autocomplete="new-password" minlength="12" required>
+                    <small class="field-hint">Minim 12 caracters.</small>
+
+                    <label for="confirm_new_password">Repeteix la nova contrasenya</label>
+                    <input type="password" id="confirm_new_password" name="confirm_new_password"
+                        autocomplete="new-password" minlength="12" required>
+
+                    <div class="dialog-actions">
+                        <button type="button" class="dialog-cancel"
+                            onclick="document.getElementById('change-password-dialog').close()">
+                            Cancelar
+                        </button>
+                        <button name="password" onclick="changePassword()" type="button">Confirmar</button>
+                    </div>
+                </form>
+            </dialog>
+        </section>
+        <section class="auth-switch edit-switch">
+            <a href="/">Tornar a la pagina principal</a>
+        </section>
+    </main>
+</body>
+
+</html>

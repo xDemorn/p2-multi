@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <!-- dades tècniques de la pàgina -->
+    <meta charset="utf-8">
+    <title>{SITE_NAME} :: Registre nou usuari</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mòbils -->
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <!-- estètica de la pàgina -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <!-- per afegir interactivitat a la pàgina -->
+    <script defer src="el_meu.js"></script>
+</head>
+
+<body class="auth-page register-page">
+    <!-- contingut visible de la pàgina -->
+    <main class="auth-shell register-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">{SITE_NAME}</span><a href="/">{SITE_NAME}</a></h1>
+            <div class="auth-feedback">{FEEDBACK}</div>
+        </header>
+        <section class="auth-form-section">
+            <form class="auth-card register-card" method="{METHOD}" action="{REGISTER_URL}">
+                <img class="auth-illustration register-illustration" src="/images/register.png" alt="" aria-hidden="true">
+                <header>
+                    <h2>Crea un nou compte</h2>
+                </header>
+                <label for="register_username">Nom d'usuari</label>
+                <input id="register_username" type="text" name="user_name" value="{REGISTER_USERNAME}"
+                    minlength="3" maxlength="63" required />
+                <small class="field-hint">Mínim: 3 caràcters.</small>
+
+                <label for="register_email">Correu electrònic</label>
+
+                <input id="register_email" type="email" name="user_email" autocomplete="email" required />
+
+                <label for="birth_date">Data de naixement</label>
+                <input id="birth_date" type="date" name="birth_date" required />
+                <p id="age-result" aria-live="polite"></p>
+
+                <label for="register_password">Contrasenya</label>
+                <div class="password-guidance" id="password-guidance">
+                    <strong>Consell:</strong> tria una frase llarga que puguis recordar fàcilment.
+                    Com a mínim, 12 caràcters. Pots combinar paraules i espais.
+                </div>
+
+                <input id="register_password" type="password" name="user_password"
+                    aria-describedby="password-guidance password-count" />
+                <label for="password-progress">Longitud de la contrasenya</label>
+                <progress id="password-progress" max="12" value="0">0</progress>
+                <p id="password-count" aria-live="polite">0 caràcters (mínim 12)</p>
+                <label for="confirm_password">Repeteix la contrasenya</label>
+                <input id="confirm_password" type="password" autocomplete="new-password"
+                    aria-describedby="password-match-result" required />
+                <p id="password-match-result" aria-live="polite"></p>
+                <button class="animated-submit" type="submit" name="register" value="1">
+                    <span class="button-label">Crear compte</span>
+                </button>
+            </form>
+        </section>
+        <section class="auth-switch">
+            <a href="{LOGIN_LOGOUT_URL}">{LOGIN_LOGOUT_TEXT}</a>
+        </section>
+    </main>
+</body>
+
+</html>

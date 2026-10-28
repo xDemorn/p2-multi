@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pàgina no trobada</title>
+    <link rel="stylesheet" href="/mvp.css">
+    <link rel="stylesheet" href="/el_meu.css">
+</head>
+<body>
+    <main>
+        <h1>404</h1>
+        <p>La pàgina que busques no existeix.</p>
+        <a href="/">Tornar a l'inici</a>
+    </main>
+</body>
+</html>

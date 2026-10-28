@@ -1,0 +1,27 @@
+{
+  "name": "iso-server",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env index.js",
+    "dev": "nodemon --exec \"node --env-file=.env\" index.js",
+    "db": "node db/create_db.js"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^3.0.0",
+    "@colyseus/ws-transport": "^0.16.0",
+    "argon2": "^0.45.1",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.0.3",
+    "colyseus": "^0.16.0",
+    "cookie": "^0.7.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "eta": "^4.6.0",
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

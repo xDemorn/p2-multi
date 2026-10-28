@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: iso-server
+    runtime: docker
+    branch: mejoras-backend
+    plan: starter
+    dockerContext: .
+    dockerfilePath: ./server/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: production
+      - key: DB_PATH
+        value: /data/data.db
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: CLIENT_ORIGIN
+        fromService:
+          type: web
+          name: iso-client
+          envVarKey: RENDER_EXTERNAL_URL
+    disk:
+      name: iso-data
+      mountPath: /data
+      sizeGB: 1
+
+  - type: web
+    name: iso-client
+    runtime: docker
+    branch: mejoras-backend
+    plan: free
+    dockerContext: ./client
+    dockerfilePath: ./client/Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: SERVER_URL
+        fromService:
+          type: web
+          name: iso-server
+          envVarKey: RENDER_EXTERNAL_URL

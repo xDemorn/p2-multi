@@ -1,0 +1,10 @@
+.git
+.idea
+**/node_modules
+client/.angular
+client/dist
+server/.env
+server/db/data.db
+server/public/uploads
+tiled
+*.md
