@@ -2,7 +2,7 @@ services:
   - type: web
     name: iso-server
     runtime: docker
-    branch: mejoras-backend
+    branch: main
     plan: starter
     region: frankfurt
     dockerContext: .
@@ -30,7 +30,7 @@ services:
   - type: web
     name: iso-client
     runtime: docker
-    branch: mejoras-backend
+    branch: main
     plan: free
     region: frankfurt
     dockerContext: ./client
