@@ -2,7 +2,7 @@ services:
   - type: web
     name: iso-server
     runtime: docker
-    branch: mejoras-backend
+    branch: main
     plan: starter
     dockerContext: .
     dockerfilePath: ./server/Dockerfile
@@ -29,7 +29,7 @@ services:
   - type: web
     name: iso-client
     runtime: docker
-    branch: mejoras-backend
+    branch: main
     plan: free
     dockerContext: ./client
     dockerfilePath: ./client/Dockerfile
