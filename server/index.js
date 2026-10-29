@@ -26,6 +26,7 @@ const app = express();
 const allowedOrigins = process.env.CLIENT_ORIGIN?.split(",").map((o) => o.trim()).filter(Boolean);
 app.use(cors(allowedOrigins ? { origin: allowedOrigins } : {}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use("/uploads", express.static(uploadsDir));
 app.use(express.static(path.join(import.meta.dirname, "public")));
@@ -55,12 +56,12 @@ app.get("/login", (req, res) => {
 });
 
 app.get("/register", (req, res) => {
-  res.send(eta.render("register"));
+  render(res, "register");
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
     cb(null, allowed.includes(file.mimetype));
@@ -73,9 +74,9 @@ app.get("/profile", auth, (req, res) => {
   render(res, "profile", {
     DATA_USERNAME: req.user.username,
     DATA_EMAIL: user.email,
-    DATA_BIRTHDATE: user.birth_date,
+    DATA_BIRTHDATE: user.birthdate,
     DATA_NICKNAME: user.nickname,
-    DATA_AVATAR: user.avatar || "/icons/default.svg"
+    DATA_AVATAR: user.avatar
   });
 });
 
@@ -83,21 +84,61 @@ app.get("/profile", auth, (req, res) => {
 
 const setAuthCookie = (res, t) => res.cookie("token", t, { httpOnly: true, secure: process.env.COOKIE_SECURE === "production", sameSite: "lax", maxAge: 60 * 60 * 1000 });
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_AGE = 16;
+
+function ageFromBirthdate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const birth = new Date(Date.UTC(year, month - 1, day));
+  if (birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day) return null;
+  const now = new Date();
+  const hadBirthday = now.getUTCMonth() > month - 1 || (now.getUTCMonth() === month - 1 && now.getUTCDate() >= day);
+  return now.getUTCFullYear() - year - (hadBirthday ? 0 : 1);
+}
+
+function readRegisterBody(body = {}) {
+  const text = (value) => (typeof value === "string" ? value.trim() : "");
+  return {
+    username: text(body.username) || text(body.user_name),
+    password: typeof body.password === "string" ? body.password : typeof body.user_password === "string" ? body.user_password : "",
+    confirm: typeof body.confirm_password === "string" ? body.confirm_password : null,
+    email: text(body.email) || text(body.user_email),
+    birthdate: text(body.birthdate),
+  };
+}
+
 app.post("/api/register", async (req, res) => {
-  const { username, password } = req.body ?? {};
-  const wantsJson = req.is("application/json") || req.get("accept")?.includes("application/json");
-  if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
-    return res.status(400).json({ error: "Username and password required" });
+  const { username, password, confirm, email, birthdate } = readRegisterBody(req.body);
+  console.log(username, password, confirm, email, birthdate)
+
+  const fail = (message, status = 400) => res.status(status).json({ error: message });
+
+  if (!username || !email || !birthdate || !password) {
+    return fail("Usuario, correo, fecha de nacimiento y contraseña son obligatorios.");
   }
+  if (!EMAIL_RE.test(email)) return fail("El correo electrónico no es válido.");
+  const age = ageFromBirthdate(birthdate);
+  if (age === null || age < 0) return fail("La fecha de nacimiento no es válida.");
+  if (age < MIN_AGE) return fail(`Debes tener al menos ${MIN_AGE} años.`);
+  if (confirm !== null && confirm !== password) return fail("Las contraseñas no coinciden.");
+
   try {
     const hash = await argon2.hash(password);
-    const id = insertUser(username, hash);
+    const id = insertUser(username, hash, email, birthdate);
     const token = createToken({ id, username });
     setAuthCookie(res, token);
-    if (wantsJson) return res.status(201).json({ token });
-    res.redirect('/login');
-  } catch {
-    res.status(409).json({ error: "Username already taken" });
+    res.status(201).json({ token });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return fail(error.message.includes("email") ? "Este correo ya está registrado." : "Ese nombre de usuario ya está en uso.", 409);
+    }
+    console.error("Registration failed:", error);
+    if (error.code === "SQLITE_BUSY" || error.code === "SQLITE_LOCKED") {
+      return fail("Base de datos bloqueada. Guarda o revierte los cambios en DB Browser y cierra la base de datos antes de reintentar.", 503);
+    }
+    return fail("No se ha podido crear el usuario. Consulta la terminal del servidor.", 500);
   }
 });
 

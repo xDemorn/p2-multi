@@ -1,106 +1,78 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Harry Popotter</title>
-  <style>
-    body {
-      margin: 0;
-      background: #141821;
-      color: #e8ecf4;
-      font-family: system-ui, sans-serif;
-      overflow: hidden;
-    }
-
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .screen.active {
-      display: flex;
-    }
-
-    input,
-    button {
-      font: inherit;
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: 1px solid #3a4258;
-      background: #1e2431;
-      color: inherit;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    button:hover:not(:disabled) {
-      background: #2a3347;
-    }
-
-    button:disabled {
-      opacity: .6;
-      cursor: default;
-    }
-
-    #teams {
-      display: grid;
-      grid-template-columns: repeat(3, 160px);
-      gap: 12px;
-    }
-
-    .team {
-      height: 80px;
-      border-width: 3px;
-    }
-
-    .team.mine {
-      outline: 3px solid #fff;
-    }
-
-    #msg {
-      color: #ff8b8b;
-      min-height: 1.2em;
-    }
-
-    #hud {
-      position: fixed;
-      top: 8px;
-      left: 8px;
-      background: #000a;
-      padding: 6px 10px;
-      border-radius: 6px;
-      display: none;
-      font-size: 14px;
-    }
-  </style>
+  <title>El torneo de los magos</title>
+  <link rel="stylesheet" href="./src/styles.css">
   <script src="/config.js"></script>
   <script type="module" src="./src/main.js"></script>
 </head>
 
 <body>
   <div id="menu" class="screen active">
-    <h1>Harry Popotter</h1>
-    <input id="user" placeholder="Username" autocomplete="username">
-    <input id="pass" type="password" placeholder="Password" autocomplete="current-password">
-    <div><button id="login">Log in</button> <button id="register">Register</button></div>
-    <div id="msg"></div>
+    <img class="screen-title home-title" src="/assets/interfaz/tittle.png" alt="El torneo de los magos">
+    <div class="stone-card home-card">
+      <p class="subtitle">Encuentra tu camino entre la piedra y los jardines.</p>
+      <div class="auth-tabs" role="tablist" aria-label="Acceso">
+        <button id="login" class="auth-tab active" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Entrar</button>
+        <button id="register" class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="register-panel">Registrarse</button>
+      </div>
+      <form id="login-panel" class="auth-panel active" role="tabpanel" aria-labelledby="login">
+        <input id="user" aria-label="Usuario" placeholder="Usuario" autocomplete="username" required>
+        <input id="pass" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+        <button id="login-submit" class="auth-submit" type="submit">Entrar</button>
+      </form>
+      <form id="register-panel" class="auth-panel" role="tabpanel" aria-labelledby="register">
+        <input id="reg-user" aria-label="Usuario" placeholder="Usuario" autocomplete="username" minlength="3" maxlength="63" required>
+        <input id="reg-email" aria-label="Correo electrónico" type="email" placeholder="Correo electrónico" autocomplete="email" required>
+        <label class="field-label" for="reg-birth">Fecha de nacimiento</label>
+        <input id="reg-birth" type="date" autocomplete="bday" required>
+        <input id="reg-pass" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="new-password" required>
+        <button id="register-submit" class="auth-submit" type="submit">Registrarse</button>
+      </form>
+      <div id="msg" role="status"></div>
+    </div>
   </div>
   <div id="lobby" class="screen">
-    <h2>Choose your team</h2>
-    <div id="teams"></div>
-    <div id="lobbyInfo"></div>
+    <img class="screen-title selection-title" src="/assets/interfaz/titulo_sinpersonajes.png" alt="El torneo de los magos">
+    <div class="stone-card lobby-card selection-card">
+      <h2>Elige tu equipo</h2>
+      <div id="teams"></div>
+      <div id="lobbyInfo"></div>
+    </div>
   </div>
   <div id="game"></div>
-  <div id="hud"></div>
+  <div id="result" class="screen" role="dialog" aria-modal="true" aria-labelledby="winner-name">
+    <div class="stone-card">
+      <span class="eyebrow">LA COPA TIENE DUEÑO</span>
+      <img class="result-trophy" src="/assets/trophy.png" alt="Copa dorada del laberinto">
+      <h2 id="winner-name"></h2>
+      <p id="result-message" class="subtitle"></p>
+      <div class="auth-actions">
+        <button id="play-again" type="button">Jugar otra partida</button>
+        <button id="logout" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+  <div id="hud">
+    <button id="ping-toggle" type="button" class="hud-stat" hidden aria-controls="player-pings" aria-expanded="false" aria-keyshortcuts="Tab" title="Mostrar u ocultar el ping de los jugadores (Tab)">
+      <kbd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12h15m-5-5 5 5-5 5M21 5v14"/></svg>Tab</kbd>
+      <span>Ping</span>
+      <svg class="ping-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m2 4 4 4 4-4"/></svg>
+    </button>
+    <div id="move-info" class="hud-stat" title="Casillas que puedes avanzar por movimiento" aria-label="Puedes avanzar 3 casillas por movimiento">
+      <span id="move-count">3</span>
+      <svg viewBox="0 0 24 28" fill="currentColor" aria-hidden="true">
+        <path d="M7 2c-2 0-3.5 2.7-3.5 5.5S4.7 13 7 13s3.5-2.7 3.5-5.5S9 2 7 2Z"/>
+        <ellipse cx="7" cy="16.5" rx="2.7" ry="2"/>
+        <path d="M17 9c-2 0-3.5 2.7-3.5 5.5S14.7 20 17 20s3.5-2.7 3.5-5.5S19 9 17 9Z"/>
+        <ellipse cx="17" cy="23.5" rx="2.7" ry="2"/>
+      </svg>
+    </div>
+    <div id="player-pings" hidden role="list" aria-label="Ping de los jugadores"></div>
+  </div>
 </body>
 
 </html>

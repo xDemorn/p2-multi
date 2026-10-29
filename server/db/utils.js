@@ -8,8 +8,9 @@ const dbPath = process.env.DB_PATH
 
 const db = new Database(dbPath);
 
-export function insertUser(username, hash) {
-    const info = db.prepare("INSERT INTO users (username, hash) VALUES (?, ?)").run(username, hash);
+
+export function insertUser(username, hash, email, birthdate) {
+    const info = db.prepare("INSERT INTO users (username, hash, email, birthdate) VALUES (?, ?, ?, ?)").run(username, hash, email, birthdate);
     return Number(info.lastInsertRowid);
 }
 

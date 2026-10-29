@@ -1,0 +1,4 @@
+Generated with the built-in image_gen tool, transparent PNG.
+Asset: client/public/assets/trophy.png
+
+Create ONE production-ready collectible trophy cup game sprite for a warm isometric fantasy maze game. Single centered golden chalice trophy with two elegant curled handles, a wide open cup bowl, short stem, small square sandstone pedestal, one small emerald inset. Charming clean low-poly / hand-painted cartoon 3D game asset, simple readable silhouette, soft thick bevels and subtle warm brown outlines, warm gold highlights, sandstone and terracotta palette. Isometric three-quarter view from above, light upper left. Full object entirely in frame with modest transparent margins, isolated on a truly transparent alpha background. No scene, no floor, no big glow, no cast ground shadow, no text, no letters, no watermark, no border. Square sprite, trophy fills most of frame. Intended to be shown at around 100 pixels tall in a PixiJS game. Saveable transparent PNG.

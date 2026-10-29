@@ -6,7 +6,7 @@ if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
 
 export const jwtSecret = process.env.JWT_SECRET || "change-me-in-production";
 
-export const createToken = (u) => jwt.sign({ id: u.id, username: u.username }, jwtSecret, { expiresIn: "1h" });
+export const createToken = (u) => jwt.sign({ id: u.id, username: u.username }, jwtSecret, { expiresIn: "2h" });
 
 export function attachUser(req, res, next) {
   const token = req.cookies.token;

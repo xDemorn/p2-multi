@@ -1,5 +1,49 @@
 # Iso Game (PixiJS + Colyseus)
 
+## Mapa del laberinto
+
+El mapa actual mide 60 × 60 casillas y tiene pasillos de dos casillas, rutas alternativas,
+seis zonas de aparición y una plaza central transitable de 6 × 6 casillas, despejada
+para la futura copa. El suelo combina piedra lisa, tierra y hierba en ocho claros con
+árboles y rocas aislados. Cada claro tiene un arroyo con un puente transitable.
+La capa `grass` usa un tinte verde compatible con Tiled y el juego.
+El juego usa las imágenes originales del tileset, con tinte verde para la hierba.
+Todos los tiles de suelo se dibujan una sola vez y en el mismo orden isométrico,
+para que sus laterales encajen sin superponerse ni parecer elevados.
+Las marcas azules señalan únicamente las seis casillas de aparición; no hay escaleras.
+Los muros, árboles, rocas y agua sin puente están marcados en la capa oculta `collision`.
+La propiedad `spawnPositions` del mapa define las posiciones iniciales de los seis equipos.
+`trophyPosition` coloca la copa en `[30, 30]`. El servidor declara ganador al primer
+jugador que llega a esa casilla, también si la atraviesa durante un recorrido.
+Al terminar se detiene el movimiento y todos ven el nombre del ganador.
+«Jugar otra partida» conserva la sesión y entra en un nuevo lobby: los demás pueden
+unirse pulsando el mismo botón. «Cerrar sesión» abandona la sala y borra el token de
+la memoria del cliente. Cada nueva sala restaura la copa, las mejoras y el alcance inicial.
+La imagen de la copa está en `client/public/assets/trophy.png`: se puede sustituir
+por otro PNG transparente. El prompt de generación está en `docs/trophy-prompt.txt`.
+El centro tiene un borde de terracota, suelo dorado y un emblema que lo distingue de los claros.
+Cada clic permite recorrer inicialmente tres casillas del camino real, contando los rodeos.
+Hay ocho bolitas `+1` compartidas: seis a ocho pasos de cada punto de aparición
+y dos más repartidas por el interior, separadas de las anteriores.
+Se recogen al pasar por su casilla, desaparecen para todos y aumentan permanentemente
+en uno el alcance del jugador durante esa partida. Las mejoras se acumulan.
+El servidor controla tanto la recogida como el alcance; el HUD muestra el límite actual.
+La propiedad `boostPositions` permite editar sus posiciones.
+La cámara usa una escala de 0.6 para mostrar un área más cercana al jugador.
+
+Pruebas de movimiento y recogidas: `cd server` y `node --test tests/gameplay.test.js`.
+Prueba de victoria y revancha con dos clientes WebSocket: `node --test tests/round-network.test.js`
+(requiere también las dependencias de `client`).
+
+![Vista del laberinto](docs/maze-preview.png)
+
+Para editarlo en Tiled, abre `client/public/assets/map.tmx` y exporta a
+`client/public/assets/map.tmj`, conservando las capas, propiedades y la referencia
+`map_tiles.tsx`. Reinicia el servidor y recarga los clientes después de cambiarlo.
+
+Para reconstruir el diseño original de este laberinto: `python scripts/generate_maze.py`.
+Este comando sobrescribe ambos mapas; no lo ejecutes si quieres conservar ediciones manuales.
+
 ## Màquina virtual
 
 - **Usuari:** *multi*

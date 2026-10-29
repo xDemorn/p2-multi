@@ -65,6 +65,17 @@ function animarBotonYEnviar(form, button, actionName) {
     button.classList.add('cat-running');
 }
 
+function animarBoton(button) {
+    const animatedElement = button.querySelector('.cat-runner') || button;
+    const finished = new Promise((resolve) => {
+        animatedElement.addEventListener('animationend', resolve, { once: true });
+        setTimeout(resolve, 1200); // fallback si les animacions estan desactivades
+    });
+    button.disabled = true;
+    button.classList.add('cat-running');
+    return finished;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.home-action').forEach((link) => {
         link.addEventListener('click', (event) => {
@@ -97,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = form.querySelector('input[name="user_password"]');
     const confirmPasswordInput = document.getElementById('confirm_password');
     const passwordMatchResult = document.getElementById('password-match-result');
-    const birthDateInput = document.getElementById('birth_date');
+    const birthDateInput = document.getElementById('birthdate');
     const ageResult = document.getElementById('age-result');
     const passwordCount = document.getElementById('password-count');
     const passwordProgress = document.getElementById('password-progress');
@@ -169,7 +180,24 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('No se ha podido comprobar la contraseña con HIBP:', err);
         }
 
-        animarBotonYEnviar(form, registerButton, 'register');
+        await animarBoton(registerButton);
+
+        const feedback = document.querySelector('.auth-feedback');
+        feedback.textContent = '';
+        try {
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: { Accept: 'application/json' },
+                body: new URLSearchParams(new FormData(form)),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No s\'ha pogut crear el compte.');
+            window.location.assign('/login');
+        } catch (err) {
+            feedback.textContent = err.message;
+            registerButton.disabled = false;
+            registerButton.classList.remove('cat-running');
+        }
     });
 });
 

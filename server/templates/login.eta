@@ -32,7 +32,7 @@
                 <input id="login_username" type="text" name="user_name" required value="miki" />
                 <label for="login_password">Contrasenya</label>
                 <input id="login_password" type="password" name="user_password" required value="patata" />
-                <% /* <p class="forgot-link"><a href="/forgot">He oblidat la contrasenya</a></p> */ %>
+                <p class="forgot-link"><a href="/forgot">He oblidat la contrasenya</a></p>
             </form>
             <button class="animated-submit login-submit" name="login" onclick=login()>
                 <span class="button-label">Iniciar sessió</span>

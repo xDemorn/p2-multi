@@ -4,7 +4,7 @@
 <head>
     <!-- dades tècniques de la pàgina -->
     <meta charset="utf-8">
-    <title>{SITE_NAME} :: Registre nou usuari</title>
+    <title>La meva pàgina :: Registre nou usuari</title>
     <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mòbils -->
     <meta name="author" content="Antonio Bueno (UdG)">
     <!-- estètica de la pàgina -->
@@ -19,26 +19,26 @@
     <!-- contingut visible de la pàgina -->
     <main class="auth-shell register-shell">
         <header class="auth-heading">
-            <h1><span class="auth-title-outline" aria-hidden="true">{SITE_NAME}</span><a href="/">{SITE_NAME}</a></h1>
-            <div class="auth-feedback">{FEEDBACK}</div>
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+            <div class="auth-feedback" role="alert"></div>
         </header>
         <section class="auth-form-section">
-            <form class="auth-card register-card" method="{METHOD}" action="{REGISTER_URL}">
+            <form class="auth-card register-card" method="post" action="/api/register">
                 <img class="auth-illustration register-illustration" src="/images/register.png" alt="" aria-hidden="true">
                 <header>
                     <h2>Crea un nou compte</h2>
                 </header>
                 <label for="register_username">Nom d'usuari</label>
-                <input id="register_username" type="text" name="user_name" value="{REGISTER_USERNAME}"
-                    minlength="3" maxlength="63" required />
+                <input id="register_username" type="text" name="user_name"
+                    autocomplete="username" minlength="3" maxlength="63" required />
                 <small class="field-hint">Mínim: 3 caràcters.</small>
 
                 <label for="register_email">Correu electrònic</label>
+                <input id="register_email" type="email" name="user_email"
+                    autocomplete="email" required />
 
-                <input id="register_email" type="email" name="user_email" autocomplete="email" required />
-
-                <label for="birth_date">Data de naixement</label>
-                <input id="birth_date" type="date" name="birth_date" required />
+                <label for="birthdate">Data de naixement</label>
+                <input id="birthdate" type="date" name="birthdate" required />
                 <p id="age-result" aria-live="polite"></p>
 
                 <label for="register_password">Contrasenya</label>
@@ -47,13 +47,13 @@
                     Com a mínim, 12 caràcters. Pots combinar paraules i espais.
                 </div>
 
-                <input id="register_password" type="password" name="user_password"
-                    aria-describedby="password-guidance password-count" />
+                <input id="register_password" type="password" name="user_password" minlength="12" autocomplete="new-password"
+                    aria-describedby="password-guidance password-count" required />
                 <label for="password-progress">Longitud de la contrasenya</label>
                 <progress id="password-progress" max="12" value="0">0</progress>
                 <p id="password-count" aria-live="polite">0 caràcters (mínim 12)</p>
                 <label for="confirm_password">Repeteix la contrasenya</label>
-                <input id="confirm_password" type="password" autocomplete="new-password"
+                <input id="confirm_password" type="password" name="confirm_password" autocomplete="new-password"
                     aria-describedby="password-match-result" required />
                 <p id="password-match-result" aria-live="polite"></p>
                 <button class="animated-submit" type="submit" name="register" value="1">
@@ -62,7 +62,7 @@
             </form>
         </section>
         <section class="auth-switch">
-            <a href="{LOGIN_LOGOUT_URL}">{LOGIN_LOGOUT_TEXT}</a>
+            <a href="/login">Ja tens un compte? Inicia sessió</a>
         </section>
     </main>
 </body>
