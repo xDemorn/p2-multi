@@ -8,7 +8,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       COOKIE_SECURE: development
       CLIENT_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
-      DB_PATH: /data/data.db
       UPLOAD_DIR: /data/uploads
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}

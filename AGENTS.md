@@ -40,6 +40,7 @@ cd client && npm install && npm run dev
 - Movement is server-authoritative: the client only sends `moveTo`; `GameRoom` validates bounds/collisions/occupied tiles, runs BFS, and broadcasts the path with `startTime`/`msPerTile` (300 ms). The client interpolates using a ping-derived clock offset. Don't add client-side movement prediction without changing both sides.
 - Phases are `lobby` → `playing`; the room locks after start and holds max 6 players. Each player must pick a team (1–6) before the game starts. `MIN_PLAYERS` is 1 in `GameRoom.js` even though the lobby text in `main.js` says "Needs 2+"; team IDs/colors are hardcoded in both files.
 - Auth: the Vite client only logs in (`/api/login`) and passes the JWT to `joinOrCreate("game", { token })`; registration, profile editing and password recovery/reset live on the server-rendered site (`/register`, `/profile`, `/forgot`, `/reset`). `GameRoom.onAuth` checks the token option first, then falls back to the `token` cookie. The server-rendered site uses the httpOnly cookie via `server/utils.js` (`attachUser`, `auth`).
+- `server/db/data.db` is tracked in git and baked into the deploy image (`DB_PATH=/app/server/db/data.db`), so production starts with the dev users and loses production registrations on redeploy. `.githooks/pre-commit` stages the DB on every commit; that requires `git config core.hooksPath .githooks`.
 - `/api/register` returns `{ token }` for JSON requests and redirects to `/login` for the HTML form.
 - Eta templates receive data as `DATA_*` keys through `render()` in `server/index.js`.
 

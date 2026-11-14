@@ -14,7 +14,7 @@ services:
       - key: COOKIE_SECURE
         value: production
       - key: DB_PATH
-        value: /data/data.db
+        value: /app/server/db/data.db
       - key: UPLOAD_DIR
         value: /data/uploads
       - key: CLIENT_ORIGIN
