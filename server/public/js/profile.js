@@ -1,5 +1,55 @@
-function changePassword() {
-    console.log("Changing password...");
+async function changePassword() {
+    const value = (id) => document.getElementById(id).value;
+    const body = {
+        current_password: value("current_password"),
+        new_password: value("new_password"),
+        confirm_new_password: value("confirm_new_password"),
+    };
+
+    try {
+        await axios.post("/api/password", body);
+    } catch (error) {
+        alert(error.response?.data?.error || "No s'ha pogut canviar la contrasenya.");
+        return;
+    }
+    for (const id of ["current_password", "new_password", "confirm_new_password"]) {
+        document.getElementById(id).value = "";
+    }
+    document.getElementById("change-password-dialog").close();
+    alert("Contrasenya canviada correctament");
+}
+
+async function startTwoFactorSetup() {
+    try {
+        const { data } = await axios.post("/api/2fa/setup");
+        document.getElementById("totp_qr").src = data.qr;
+        document.getElementById("totp_secret").textContent = data.secret;
+        document.getElementById("totp_setup").hidden = false;
+        document.getElementById("totp_start").hidden = true;
+        document.getElementById("totp_activate").hidden = false;
+    } catch (error) {
+        alert(error.response?.data?.error || "No s'ha pogut iniciar la configuració del 2FA.");
+    }
+}
+
+async function enableTwoFactor() {
+    try {
+        await axios.post("/api/2fa/enable", { code: document.getElementById("totp_enable_code").value });
+    } catch (error) {
+        alert(error.response?.data?.error || "No s'ha pogut activar el 2FA.");
+        return;
+    }
+    location.reload();
+}
+
+async function disableTwoFactor() {
+    try {
+        await axios.post("/api/2fa/disable", { code: document.getElementById("totp_disable_code").value });
+    } catch (error) {
+        alert(error.response?.data?.error || "No s'ha pogut desactivar el 2FA.");
+        return;
+    }
+    location.reload();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -68,7 +118,7 @@ function updateProfile() {
 
     console.log(data)
 
-    fetch("/api/profile", { method: "PUT", body: data }).then(res => res.json()).then(res => {
+    axios.put("/api/profile", data).then(res => {
         console.log(res);
     }).catch(err => {
         console.log(err);

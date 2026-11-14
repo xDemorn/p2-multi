@@ -1,15 +1,24 @@
 {
   "name": "iso-server",
+  "version": "1.0.0",
+  "description": "Server for the isometric game",
+  "engines": {
+    "node": ">=20.11"
+  },
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env index.js",
-    "dev": "nodemon --exec \"node --env-file=.env\" index.js",
-    "db": "node db/create_db.js"
+    "prestart": "node setup-env.js",
+    "start": "node --env-file=.env --import ./db/create_db.js index.js",
+    "predev": "node setup-env.js",
+    "dev": "nodemon --exec \"node --env-file=.env --import ./db/create_db.js\" index.js",
+    "predb": "node setup-env.js",
+    "db": "node --env-file=.env db/create_db.js"
   },
   "dependencies": {
     "@colyseus/schema": "^3.0.0",
     "@colyseus/ws-transport": "^0.16.0",
     "argon2": "^0.45.1",
+    "axios": "^1.21.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
     "colyseus": "^0.16.0",
@@ -19,7 +28,9 @@
     "eta": "^4.6.0",
     "express": "^4.19.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.5.0"
+    "multer": "^2.5.0",
+    "otplib": "^13.6.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

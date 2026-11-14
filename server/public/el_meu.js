@@ -1,39 +1,6 @@
 // Afegeix aquí el teu codi JavaScript
 // Afegeix aquí el teu codi JavaScript
 
-async function calcularSha1Hexadecimal(msg) {
-    const enc = new TextEncoder();
-    const data = enc.encode(msg);
-    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
-    const bytes = new Uint8Array(hashBuffer);
-    let hex = '';
-    for (const b of bytes) {
-        hex += b.toString(16).padStart(2, '0');
-    }
-    return hex.toUpperCase();
-}
-
-async function passwordEstaFiltrada(password) {
-    const hash = await calcularSha1Hexadecimal(password);
-    const prefix = hash.slice(0, 5);
-    const suffix = hash.slice(5);
-
-    const resp = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
-    if (!resp.ok) {
-        throw new Error(`Error HTTP ${resp.status}`);
-    }
-    const txt = await resp.text();
-
-    const lines = txt.trim().split(/\r?\n/);
-    for (const line of lines) {
-        const [suff] = line.split(':');
-        if (suff && suff.toUpperCase() === suffix) {
-            return true;
-        }
-    }
-    return false;
-}
-
 function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null;
 
@@ -87,6 +54,25 @@ document.addEventListener('DOMContentLoaded', () => {
             link.classList.add('home-action-running');
         });
     });
+
+    const deleteForm = document.getElementById('delete-form');
+    if (deleteForm) {
+        const deleteButton = deleteForm.querySelector('[name="delete"]');
+        const feedback = document.querySelector('.auth-feedback');
+        deleteForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            feedback.textContent = '';
+            deleteButton.disabled = true;
+            try {
+                await axios.post('/api/delete', new URLSearchParams(new FormData(deleteForm)));
+                window.location.assign('/');
+            } catch (error) {
+                feedback.textContent = error.response?.data?.error || 'No s\'ha pogut eliminar el compte.';
+                deleteButton.disabled = false;
+            }
+        });
+        return;
+    }
 
     const registerButton = document.querySelector('[name="register"]');
     const loginButton = document.querySelector('[name="login"]');
@@ -167,17 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if ([...password].length < minimumPasswordLength) {
-            alert('La contrasenya ha de tenir com a mínim 12 caràcters');
+            alert(`La contrasenya ha de tenir com a mínim ${minimumPasswordLength} caràcters`);
             return;
-        }
-        try {
-            const filtrada = await passwordEstaFiltrada(password);
-            if (filtrada) {
-                alert('Aquesta contrasenya ha aparegut en filtracions de dades. Tria\'n una altra.');
-                return;
-            }
-        } catch (err) {
-            console.warn('No se ha podido comprobar la contraseña con HIBP:', err);
         }
 
         await animarBoton(registerButton);
@@ -185,16 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const feedback = document.querySelector('.auth-feedback');
         feedback.textContent = '';
         try {
-            const res = await fetch(form.action, {
-                method: 'POST',
-                headers: { Accept: 'application/json' },
-                body: new URLSearchParams(new FormData(form)),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'No s\'ha pogut crear el compte.');
-            window.location.assign('/login');
+            await axios.post(form.action, new URLSearchParams(new FormData(form)));
+            window.location.assign('/');
         } catch (err) {
-            feedback.textContent = err.message;
+            feedback.textContent = err.response?.data?.error || 'No s\'ha pogut crear el compte.';
             registerButton.disabled = false;
             registerButton.classList.remove('cat-running');
         }
@@ -202,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function logout() {
-    fetch("/api/logout", { method: "POST" }).then(res => res.json()).then(res => {
+    axios.post("/api/logout").then(() => {
         window.location.reload();
     }).catch(err => {
         console.log(err);

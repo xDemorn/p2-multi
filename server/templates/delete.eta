@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Eliminar compte</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Confirma l'eliminació del teu compte">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <script src="/vendor/axios/axios.min.js"></script>
+    <script defer src="el_meu.js"></script>
+</head>
+
+<body class="auth-page delete-page">
+    <main class="auth-shell delete-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+            <div class="auth-feedback" role="alert" aria-live="polite"></div>
+        </header>
+        <section class="auth-form-section">
+            <form id="delete-form" class="auth-card delete-card" method="post">
+                <img class="auth-illustration delete-illustration" src="/images/eliminar.png" alt="" aria-hidden="true">
+                <header>
+                    <h2>Eliminar compte</h2>
+                </header>
+                <p class="delete-warning" id="delete-warning">Estàs segur que vols continuar? Quan eliminis el compte, no podràs recuperar-lo.</p>
+                <label for="delete_password">Contrasenya actual</label>
+                <input id="delete_password" type="password" name="current_password" autocomplete="current-password" aria-describedby="delete-warning" required>
+                <div class="delete-actions">
+                    <a class="profile-secondary-action" href="/">Torna a l'inici</a>
+                    <button class="delete-submit" type="submit" name="delete" value="1">Elimina el compte</button>
+                </div>
+            </form>
+        </section>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Compte bloquejat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Motiu del bloqueig del compte">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <script src="/vendor/axios/axios.min.js"></script>
+</head>
+
+<body class="auth-page banned-page">
+    <main class="auth-shell banned-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+        </header>
+        <section class="auth-form-section">
+            <article class="auth-card banned-card">
+                <header>
+                    <h2>Compte bloquejat</h2>
+                </header>
+                <p class="banned-reason"><strong>Motiu:</strong> <%= it.DATA_REASON || "No s'ha indicat cap motiu." %></p>
+                <button class="profile-secondary-action banned-logout" type="button"
+                    onclick="axios.post('/api/logout').then(() => location.assign('/login'))">
+                    Tancar sessió
+                </button>
+            </article>
+        </section>
+    </main>
+</body>
+
+</html>

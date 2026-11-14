@@ -18,6 +18,7 @@
     <meta property="og:description" content="Una plantilla web molt basica per no comencar des de zero">
     <meta property="og:image" content="og_image.png">
     <!-- per afegir interactivitat a la pagina -->
+    <script src="/vendor/axios/axios.min.js"></script>
     <script defer src="js/profile.js"></script>
 </head>
 
@@ -76,8 +77,53 @@
                         onclick="document.getElementById('change-password-dialog').showModal()">
                         Canviar contrasenya
                     </button>
+                    <button class="profile-secondary-action" type="button"
+                        onclick="document.getElementById('two-factor-dialog').showModal()">
+                        <%= it.DATA_TOTP_ENABLED ? "Desactivar 2FA" : "Activar 2FA" %>
+                    </button>
                 </div>
             </form>
+
+            <dialog class="password-dialog" id="two-factor-dialog">
+                <form class="password-dialog-form">
+                    <header>
+                        <h2>Autenticació en dos passos (2FA)</h2>
+                    </header>
+                    <% if (it.DATA_TOTP_ENABLED) { %>
+                        <p>El 2FA està activat. Introdueix un codi de la teva aplicació per desactivar-lo.</p>
+                        <label for="totp_disable_code">Codi de 6 dígits</label>
+                        <input type="text" id="totp_disable_code" inputmode="numeric" pattern="[0-9]{6}"
+                            maxlength="6" autocomplete="one-time-code" required>
+
+                        <div class="dialog-actions">
+                            <button type="button" class="dialog-cancel"
+                                onclick="document.getElementById('two-factor-dialog').close()">
+                                Cancelar
+                            </button>
+                            <button type="button" onclick="disableTwoFactor()">Desactivar</button>
+                        </div>
+                    <% } else { %>
+                        <p>Escaneja el codi QR amb Google Authenticator o una aplicació similar.</p>
+                        <div id="totp_setup" hidden>
+                            <img id="totp_qr" alt="Codi QR per configurar el 2FA" width="200" height="200">
+                            <p>Clau manual: <code id="totp_secret"></code></p>
+
+                            <label for="totp_enable_code">Codi de 6 dígits</label>
+                            <input type="text" id="totp_enable_code" inputmode="numeric" pattern="[0-9]{6}"
+                                maxlength="6" autocomplete="one-time-code" required>
+                        </div>
+
+                        <div class="dialog-actions">
+                            <button type="button" class="dialog-cancel"
+                                onclick="document.getElementById('two-factor-dialog').close()">
+                                Cancelar
+                            </button>
+                            <button type="button" id="totp_start" onclick="startTwoFactorSetup()">Generar codi QR</button>
+                            <button type="button" id="totp_activate" onclick="enableTwoFactor()" hidden>Activar</button>
+                        </div>
+                    <% } %>
+                </form>
+            </dialog>
 
             <dialog class="password-dialog" id="change-password-dialog">
                 <form class="password-dialog-form">

@@ -2,40 +2,42 @@
 
 ## Mapa del laberinto
 
-El mapa actual mide 60 × 60 casillas y tiene pasillos de dos casillas, rutas alternativas,
-seis zonas de aparición y una plaza central transitable de 6 × 6 casillas, despejada
-para la futura copa. El suelo combina piedra lisa, tierra y hierba en ocho claros con
-árboles y rocas aislados. Cada claro tiene un arroyo con un puente transitable.
-La capa `grass` usa un tinte verde compatible con Tiled y el juego.
-El juego usa las imágenes originales del tileset, con tinte verde para la hierba.
-Todos los tiles de suelo se dibujan una sola vez y en el mismo orden isométrico,
-para que sus laterales encajen sin superponerse ni parecer elevados.
-Las marcas azules señalan únicamente las seis casillas de aparición; no hay escaleras.
-Los muros, árboles, rocas y agua sin puente están marcados en la capa oculta `collision`.
-La propiedad `spawnPositions` del mapa define las posiciones iniciales de los seis equipos.
-`trophyPosition` coloca la copa en `[30, 30]`. El servidor declara ganador al primer
-jugador que llega a esa casilla, también si la atraviesa durante un recorrido.
-Al terminar se detiene el movimiento y todos ven el nombre del ganador.
-«Jugar otra partida» conserva la sesión y entra en un nuevo lobby: los demás pueden
-unirse pulsando el mismo botón. «Cerrar sesión» abandona la sala y borra el token de
-la memoria del cliente. Cada nueva sala restaura la copa, las mejoras y el alcance inicial.
-La imagen de la copa está en `client/public/assets/trophy.png`: se puede sustituir
-por otro PNG transparente. El prompt de generación está en `docs/trophy-prompt.txt`.
-El centro tiene un borde de terracota, suelo dorado y un emblema que lo distingue de los claros.
-Cada clic permite recorrer inicialmente tres casillas del camino real, contando los rodeos.
-Hay ocho bolitas `+1` compartidas: seis a ocho pasos de cada punto de aparición
-y dos más repartidas por el interior, separadas de las anteriores.
-Se recogen al pasar por su casilla, desaparecen para todos y aumentan permanentemente
-en uno el alcance del jugador durante esa partida. Las mejoras se acumulan.
-El servidor controla tanto la recogida como el alcance; el HUD muestra el límite actual.
-La propiedad `boostPositions` permite editar sus posiciones.
-La cámara usa una escala de 0.6 para mostrar un área más cercana al jugador.
+El mapa mide 60 × 60 casillas. Todos los pasillos tienen dos casillas de ancho,
+sin plazas, claros ni zonas de salida más anchas. Hay 79 cruces con tres o más
+salidas y 42 conexiones alternativas para adelantar y cambiar de ruta. Árboles
+y rocas decoran únicamente casillas bloqueadas.
 
-Pruebas de movimiento y recogidas: `cd server` y `node --test tests/gameplay.test.js`.
-Prueba de victoria y revancha con dos clientes WebSocket: `node --test tests/round-network.test.js`
-(requiere también las dependencias de `client`).
+Los seis jugadores salen del mismo lado, agrupados en un bloque de 2 × 3 casillas:
+`[3,5]`, `[4,5]`, `[3,4]`, `[4,4]`, `[3,3]`, `[4,3]`. Comparten un acceso al
+laberinto y los dos primeros pueden disputar la misma casilla desde su movimiento
+inicial. Las marcas azules identifican esas seis posiciones.
 
-![Vista del laberinto](docs/maze-preview.png)
+La copa está en `[55,55]`, al final de un ramal con una única entrada de dos
+casillas, en el extremo opuesto. El camino más corto desde la salida adelantada
+mide 102 pasos (antes 204). El suelo dorado y el emblema acompañan la posición de la copa.
+Las propiedades `spawnPositions`, `trophyPosition` y `boostPositions` del mapa
+configuran las posiciones que utiliza el servidor.
+
+Hay ocho mejoras `+1` compartidas a lo largo del recorrido, con las dos primeras
+a 6 y 12 pasos de la salida adelantada. Se recogen al pasar por ellas, desaparecen
+para todos y aumentan en uno el alcance del jugador durante esa partida, hasta
+un máximo de 7 casillas por clic. Al llegar a 7, pasar por encima de otra bolita
+no la recoge ni la elimina: queda disponible para otros jugadores. Se empieza
+con un alcance de tres casillas por clic y el HUD muestra el alcance actual y el
+máximo. El servidor controla movimiento,
+colisiones, disputas, recogidas y victoria.
+
+El primer jugador que llega a la copa gana, también si la atraviesa en un recorrido.
+«Jugar otra partida» conserva la sesión y abre un lobby nuevo; los demás pueden
+unirse con el mismo botón. Cada sala restaura copa, mejoras y alcance inicial.
+La imagen de la copa está en `client/public/assets/trophy.png` y su prompt en
+`docs/trophy-prompt.txt`. La cámara conserva una escala de 0.6.
+
+Pruebas: `cd server` y `node --test tests/*.test.js` (las pruebas de red requieren
+también las dependencias del cliente). Verifican conectividad, anchura de los
+pasillos, salidas agrupadas, meta al fondo, disputas, recogidas y revancha.
+
+![Esquema del laberinto y salida compartida](docs/maze-preview.png)
 
 Para editarlo en Tiled, abre `client/public/assets/map.tmx` y exporta a
 `client/public/assets/map.tmj`, conservando las capas, propiedades y la referencia
@@ -43,6 +45,7 @@ Para editarlo en Tiled, abre `client/public/assets/map.tmx` y exporta a
 
 Para reconstruir el diseño original de este laberinto: `python scripts/generate_maze.py`.
 Este comando sobrescribe ambos mapas; no lo ejecutes si quieres conservar ediciones manuales.
+Para regenerar el esquema del README: `python scripts/preview_maze.py` (requiere Pillow).
 
 ## Màquina virtual
 
@@ -53,18 +56,118 @@ Este comando sobrescribe ambos mapas; no lo ejecutes si quieres conservar edicio
 
 ### Servidor (port 2567)
 
+Cal Node.js 22 o superior. En Windows PowerShell, si `npm` queda bloquejat
+per la política de scripts, utilitza `npm.cmd` als comandos següents.
+
 1. `cd server`
-2. `cp .env.example .env` (només el primer cop)
+2. `npm install`
 3. `npm start` (o `npm run dev` per reiniciar automàticament en canviar fitxers)
+
+En local, l'arrencada crea `.env` a partir de `.env.example` si no existeix
+i prepara les taules de SQLite automàticament, sense esborrar dades existents.
+No cal entregar `.env`: està ignorat per Git. Si ja existeix, es conserva.
+En producció cal configurar les variables i un `JWT_SECRET` propi;
+la creació automàtica de `.env` només s'aplica a l'entorn local.
 
 #### Crear base de dades
 
-Nomes cal executar `npm run db`.
+Opcionalment, es pot preparar per separat amb `npm run db`.
 
 ### Client (port 5173)
 
 1. `cd client`
-2. `npm run dev`
+2. `npm install`
+3. `npm run dev` (en una altra terminal, amb el servidor en marxa)
+
+Obre http://localhost:5173 i inicia sessió. Per crear un compte, usa el botó
+«Registrarse» (obre el formulari de la web del servidor a `/register`).
+
+## Recuperación de contraseña con Brevo
+
+El login del juego incluye «He olvidado mi contraseña», que abre la página
+`/forgot` de la web del servidor. La recuperación se completa en `/forgot` y
+`/reset`; ambas páginas usan `POST /api/forgot-password` y
+`POST /api/reset-password` del backend. El enlace del correo apunta a
+`SERVER_URL/reset`; en Render se usa automáticamente `RENDER_EXTERNAL_URL` si
+`SERVER_URL` no está definida.
+
+Configura estas variables **solo en el backend**, en `server/.env`:
+
+```dotenv
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME="El torneo de los magos"
+SERVER_URL=http://localhost:2567
+TRUST_PROXY_HOPS=0
+```
+
+- Genera una **API Key**, no una clave SMTP, en Brevo: Settings → SMTP & API →
+  API Keys & MCP. Documentación: https://help.brevo.com/hc/en-us/articles/209467485
+- Añade y verifica el remitente que usarás en `BREVO_SENDER_EMAIL`, completa la
+  autenticación de dominio que indique Brevo y comprueba que el envío transaccional
+  esté activado. Guía: https://developers.brevo.com/docs/getting-started-with-senders-and-domains
+- `SERVER_URL` es la URL pública de este servidor (no la del cliente). En
+  producción es obligatoria: evita que un `Host` falso redirija el enlace de
+  recuperación. Usa HTTPS en un despliegue público.
+- No subas `.env`, no uses variables `VITE_` para estas credenciales y no las
+  añadas al `/config.js` público. Reinicia el servidor después de configurarlas.
+- El `.env` existente se conserva: añade estas variables manualmente si lo creaste
+  antes de incorporar esta funcionalidad. No necesitas compartir la clave por chat.
+
+En Render, el blueprint configura un salto de proxy; introduce la clave y el
+remitente como variables del servicio **servidor**. Para un servicio ya creado,
+comprueba también esas variables en su panel. `TRUST_PROXY_HOPS=0` sirve para
+acceso directo local; usa `1` solo si el servidor está detrás de un único proxy de
+confianza, como el despliegue previsto en Render. Una topología distinta requiere
+revisar este valor para no aceptar IP falsificadas.
+
+En Docker local puedes cargar las credenciales con
+`docker compose --env-file server/.env up --build`.
+
+### Comprobar el flujo
+
+1. Arranca servidor y cliente y registra una cuenta con un correo que controles.
+2. Pulsa «He olvidado mi contraseña» y envía ese correo.
+3. Revisa la bandeja de entrada, spam y los registros transaccionales de Brevo.
+4. Abre el enlace y elige una contraseña de al menos 12 caracteres. Inicia
+   sesión con ella y comprueba que la anterior ya no funciona.
+5. Reutiliza el enlace: debe fallar. Solicita dos enlaces separados por al menos
+   un minuto: solo debe funcionar el último. A los 30 minutos caducan.
+6. Un correo inexistente y un fallo del proveedor muestran la misma respuesta
+   genérica. Los logs solo incluyen códigos seguros como `BREVO_HTTP_401`,
+   `BREVO_HTTP_429`, `BREVO_NOT_CONFIGURED` o `RECOVERY_FAILED`.
+
+Brevo recibe una petición HTTPS a `https://api.brevo.com/v3/smtp/email` con la
+cabecera `api-key`. Una respuesta aceptada no garantiza entrega: compruébala en
+su panel. No se envían correos reales en las pruebas automatizadas.
+
+Los tokens tienen 32 bytes aleatorios; solo su SHA-256 se guarda en SQLite.
+Registro, recuperación y cambio comparten `server/passwordPolicy.js`: mínimo 12 caracteres,
+sin exigir mayúsculas, números ni símbolos, permitiendo frases y espacios. Se rechazan
+contraseñas detectadas en Pwned Passwords enviando solo los cinco primeros caracteres
+de su SHA-1. Si el servicio no responde, se permite continuar y se registra únicamente
+`HIBP_UNAVAILABLE`, conservando el comportamiento original del registro.
+Solicitar otro reemplaza el anterior. La contraseña se guarda con Argon2id y el
+token se valida de nuevo y se consume dentro de la misma transacción del cambio.
+Abrir el enlace no consume el token. Este viaja en el fragmento de URL y el cliente
+lo retira de la barra al leerlo; recargar esa pantalla requiere abrir de nuevo el
+enlace del correo. No se guarda en el almacenamiento del navegador.
+
+Límites por proceso: 5 solicitudes por IP cada 15 minutos, 1 por correo cada minuto,
+3 por correo cada hora y 10 intentos de cambio por IP cada 15 minutos. Los límites
+por correo mantienen la respuesta genérica. Los contadores están en memoria y se
+reinician al reiniciar el servidor; no se comparten entre varias instancias. El envío
+en segundo plano evita esperar a Brevo para responder, pero no es una cola persistente:
+si se detiene el proceso puede perderse el envío y habrá que solicitar otro enlace.
+Los JWT de sesiones ya abiertas conservan su caducidad actual; esta función invalida
+enlaces de recuperación, sin añadir revocación de sesiones al sistema existente.
+
+Pruebas con SQLite en memoria y Brevo simulado:
+
+```bash
+cd server
+node --test tests/password-recovery.test.js
+```
 
 ## Crear mapes isometrics
 

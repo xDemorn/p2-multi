@@ -10,6 +10,10 @@ services:
       CLIENT_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
       DB_PATH: /data/data.db
       UPLOAD_DIR: /data/uploads
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-El torneo de los magos}
+      SERVER_URL: ${SERVER_URL:-http://localhost:2567}
     ports:
       - "2567:2567"
     volumes:

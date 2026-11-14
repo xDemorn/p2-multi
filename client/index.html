@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
   <title>El torneo de los magos</title>
   <link rel="stylesheet" href="./src/styles.css">
   <script src="/config.js"></script>
@@ -15,23 +16,19 @@
     <img class="screen-title home-title" src="/assets/interfaz/tittle.png" alt="El torneo de los magos">
     <div class="stone-card home-card">
       <p class="subtitle">Encuentra tu camino entre la piedra y los jardines.</p>
-      <div class="auth-tabs" role="tablist" aria-label="Acceso">
-        <button id="login" class="auth-tab active" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Entrar</button>
-        <button id="register" class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="register-panel">Registrarse</button>
+      <div class="auth-tabs">
+        <span class="auth-tab active">Entrar</span>
+        <a id="register" class="auth-tab" href="#" target="_blank" rel="noopener">Registrarse</a>
       </div>
-      <form id="login-panel" class="auth-panel active" role="tabpanel" aria-labelledby="login">
+      <form id="login-panel" class="auth-panel active">
         <input id="user" aria-label="Usuario" placeholder="Usuario" autocomplete="username" required>
         <input id="pass" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="current-password" required>
-        <button id="login-submit" class="auth-submit" type="submit">Entrar</button>
+        <input id="totp" aria-label="Código de verificación" placeholder="Código de 6 dígitos" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" hidden>
+        <button id="login-submit" class="auth-submit" type="submit">Iniciar sesión</button>
+        <a id="forgot-password-link" class="text-button" href="#" target="_blank" rel="noopener">He olvidado mi contraseña</a>
       </form>
-      <form id="register-panel" class="auth-panel" role="tabpanel" aria-labelledby="register">
-        <input id="reg-user" aria-label="Usuario" placeholder="Usuario" autocomplete="username" minlength="3" maxlength="63" required>
-        <input id="reg-email" aria-label="Correo electrónico" type="email" placeholder="Correo electrónico" autocomplete="email" required>
-        <label class="field-label" for="reg-birth">Fecha de nacimiento</label>
-        <input id="reg-birth" type="date" autocomplete="bday" required>
-        <input id="reg-pass" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="new-password" required>
-        <button id="register-submit" class="auth-submit" type="submit">Registrarse</button>
-      </form>
+      <label class="field-label" for="room-id">ID de sala (opcional)</label>
+      <input id="room-id" name="roomId" type="text" placeholder="Conectar a una sala existente" autocomplete="off" spellcheck="false">
       <div id="msg" role="status"></div>
     </div>
   </div>
@@ -40,6 +37,11 @@
     <div class="stone-card lobby-card selection-card">
       <h2>Elige tu equipo</h2>
       <div id="teams"></div>
+      <div class="room-id-actions">
+        <div id="roomId"></div>
+        <button id="copyRoomId" class="auth-submit" type="button">Copiar ID</button>
+        <a id="profile-link" class="auth-submit" href="#" target="_blank" rel="noopener noreferrer">Editar perfil</a>
+      </div>
       <div id="lobbyInfo"></div>
     </div>
   </div>
@@ -62,8 +64,8 @@
       <span>Ping</span>
       <svg class="ping-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m2 4 4 4 4-4"/></svg>
     </button>
-    <div id="move-info" class="hud-stat" title="Casillas que puedes avanzar por movimiento" aria-label="Puedes avanzar 3 casillas por movimiento">
-      <span id="move-count">3</span>
+    <div id="move-info" class="hud-stat" title="Casillas por movimiento; máximo 7" aria-label="Puedes avanzar 3 casillas por movimiento, hasta un máximo de 7">
+      <span id="move-count">3 / 7</span>
       <svg viewBox="0 0 24 28" fill="currentColor" aria-hidden="true">
         <path d="M7 2c-2 0-3.5 2.7-3.5 5.5S4.7 13 7 13s3.5-2.7 3.5-5.5S9 2 7 2Z"/>
         <ellipse cx="7" cy="16.5" rx="2.7" ry="2"/>

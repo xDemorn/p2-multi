@@ -1,0 +1,29 @@
+\babel@toc {catalan}{}\relax 
+\contentsline {section}{\numberline {1}Objectiu i abast}{3}{section.1}%
+\contentsline {section}{\numberline {2}Arquitectura general}{3}{section.2}%
+\contentsline {section}{\numberline {3}Mòdul de Gestió d'Usuaris}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Tecnologies i estructura}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Model de dades}{4}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Registre}{4}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Sessió i autenticació}{5}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Perfil i avatar}{5}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Canvi de contrasenya}{5}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Recuperació de contrasenya}{5}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.8}Eliminació de compte}{5}{subsection.3.8}%
+\contentsline {subsection}{\numberline {3.9}Baneig i moderació}{5}{subsection.3.9}%
+\contentsline {subsection}{\numberline {3.10}La part multijugador d'aquest mòdul}{6}{subsection.3.10}%
+\contentsline {section}{\numberline {4}Mòdul d'Interacció}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Tecnologies i pantalles}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Mapa i renderitzat isomètric}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Lobby, equips i inici de partida}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Moviment autoritatiu i sincronització}{7}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Disputes per una casella}{7}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Millores i condició de victòria}{7}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}HUD, ping i resultat}{7}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4.8}La part multijugador del joc}{8}{subsection.4.8}%
+\contentsline {section}{\numberline {5}Com es connecten els dos mòduls}{8}{section.5}%
+\contentsline {section}{\numberline {6}Proves i qualitat}{8}{section.6}%
+\contentsline {section}{\numberline {7}Distribució de tasques}{9}{section.7}%
+\contentsline {section}{\numberline {8}Enllaços}{10}{section.8}%
+\contentsline {section}{\numberline {9}Limitacions i treball futur}{10}{section.9}%
+\contentsline {section}{\numberline {10}Conclusions}{10}{section.10}%

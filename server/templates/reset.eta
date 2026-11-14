@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Nova contrasenya</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <script src="/vendor/axios/axios.min.js"></script>
+    <script defer src="js/reset.js"></script>
+</head>
+
+<body class="auth-page reset-page">
+    <main class="auth-shell reset-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+            <div class="auth-feedback" role="alert"></div>
+        </header>
+
+        <section class="auth-form-section">
+            <form id="reset-form" class="auth-card reset-card" method="post" action="/api/reset-password">
+                <img class="auth-illustration reset-illustration" src="/images/login.png" alt="" aria-hidden="true">
+                <header>
+                    <h2>Crear una nova contrasenya</h2>
+                </header>
+
+                <label for="new_password">Nova contrasenya</label>
+                <input id="new_password" type="password" name="password" autocomplete="new-password"
+                    minlength="12" aria-describedby="password-hint" required />
+
+                <label for="confirm_new_password">Repeteix la nova contrasenya</label>
+                <input id="confirm_new_password" type="password" name="confirmPassword"
+                    autocomplete="new-password" minlength="12" required />
+
+                <small id="password-hint" class="field-hint">Mínim 12 caràcters. Pots combinar paraules i espais.</small>
+            </form>
+            <button class="animated-submit reset-submit" type="submit" name="reset_password" value="1" form="reset-form">
+                <span class="button-label">Canviar contrasenya</span>
+            </button>
+        </section>
+
+        <section class="auth-switch">
+            <a href="/forgot">Sol·licitar un enllaç nou</a> · <a href="/login">Tornar a l'inici de sessió</a>
+        </section>
+    </main>
+</body>
+
+</html>

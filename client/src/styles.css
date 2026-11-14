@@ -94,7 +94,8 @@ h1 { font-size: clamp(28px, 5vw, 38px); }
 }
 
 input,
-button {
+button,
+.auth-submit {
   font: inherit;
   padding: 10px 14px;
   border-radius: 8px;
@@ -106,6 +107,8 @@ button {
 input { box-sizing: border-box; width: 100%; }
 input::placeholder { color: #687895; }
 input:focus-visible, button:focus-visible { outline: 3px solid #80629c; outline-offset: 3px; }
+.field-label[for="room-id"] { color: #49345f; font-size: 15px; font-weight: 700; }
+#room-id { border: 2px solid #c49a54; background: #fff8e7; font-weight: 600; }
 
 button {
   cursor: pointer;
@@ -122,14 +125,25 @@ button:hover:not(:disabled) {
 .auth-actions button { flex: 1; }
 
 .auth-tabs { display: flex; gap: 10px; width: 100%; }
-.auth-tabs button { flex: 1; }
-.auth-tab { background: #edf3ff; color: inherit; border-color: #9baed0; }
+.auth-tabs > * { flex: 1; }
+.auth-tab {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid #9baed0;
+  border-radius: 8px;
+  background: #edf3ff;
+  color: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
 .auth-tab.active { background: #574071; color: #fff8e7; border-color: #49345f; }
 .auth-tab.active:hover:not(:disabled) { background: #46335e; }
 
 .auth-panel { display: none; flex-direction: column; gap: 12px; width: 100%; }
 .auth-panel.active { display: flex; }
-.auth-submit { background: #574071; color: #fff8e7; border-color: #49345f; }
+.text-button { background: transparent; border-color: transparent; text-decoration: underline; font-size: 13px; text-align: center; }
+.auth-submit { display: inline-block; text-align: center; font-weight: 600; text-decoration: none; background: #574071; color: #fff8e7; border-color: #49345f; }
 .auth-submit:hover:not(:disabled) { background: #46335e; }
 .field-label { align-self: flex-start; font-size: 12px; font-weight: 600; color: #6d5d76; }
 
@@ -146,7 +160,9 @@ button:disabled {
 }
 
 .lobby-card { width: min(600px, calc(100vw - 32px)); }
-#lobbyInfo { color: #6d5d76; font-size: 14px; text-align: center; }
+#roomId, #lobbyInfo { color: #6d5d76; font-size: 14px; text-align: center; }
+#roomId { padding: 8px 12px; border: 1px solid #c49a54; border-radius: 8px; background: #fff8e7; color: #49345f; font-size: 16px; font-weight: 700; }
+.room-id-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 
 .team {
   position: relative;

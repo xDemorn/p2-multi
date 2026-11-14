@@ -1,4 +1,4 @@
-"""Rebuild the playable Tiled maze using only the existing tileset (Python 3)."""
+"""Build the 60x60 race maze with two-tile passages and a shared start (Python 3)."""
 import json
 import random
 from collections import deque
@@ -9,32 +9,27 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "client/public/assets"
 SIZE = 60
 RNG = random.Random(1739)
-walkable = set()
-
-
-def carve(x, y, width=2, height=2):
-    walkable.update((xx, yy) for yy in range(y, y + height) for xx in range(x, x + width))
-
-
-# Two-tile passages on a four-tile lattice leave substantial stone walls.
-# Keep the central courtyard out of the maze graph.
-nodes = {(x, y) for y in range(14) for x in range(14)
-         if not (6 <= x <= 7 and 6 <= y <= 7)}
-visited = {(0, 0)}
-stack = [(0, 0)]
-edges = set()
+DIRECTIONS = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+walkable, edges = set(), set()
 
 
 def connect(a, b):
     edges.add(tuple(sorted((a, b))))
     ax, ay = 3 + 4 * a[0], 3 + 4 * a[1]
     bx, by = 3 + 4 * b[0], 3 + 4 * b[1]
-    carve(min(ax, bx), min(ay, by), abs(ax - bx) + 2, abs(ay - by) + 2)
+    walkable.update((x, y) for y in range(min(ay, by), max(ay, by) + 2)
+                    for x in range(min(ax, bx), max(ax, bx) + 2))
 
 
+# Two-wide channels on a four-tile lattice. No plazas or wider starting courts.
+# Start and finish each have exactly one connection to the maze graph.
+start_node, entry_node = (0, 0), (0, 1)
+goal_node, goal_entry = (13, 13), (12, 13)
+nodes = {(x, y) for y in range(14) for x in range(14)} - {start_node, goal_node}
+visited, stack = {entry_node}, [entry_node]
 while stack:
     x, y = stack[-1]
-    choices = [(x + dx, y + dy) for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]
+    choices = [(x + dx, y + dy) for dx, dy in DIRECTIONS
                if (x + dx, y + dy) in nodes - visited]
     if not choices:
         stack.pop()
@@ -43,8 +38,9 @@ while stack:
     connect((x, y), nxt)
     visited.add(nxt)
     stack.append(nxt)
+assert visited == nodes
 
-# A few alternative routes let players approach the same destination from different sides.
+# More loops create junctions and shorter alternatives while keeping the shared entrance and terminal goal.
 shortcuts = []
 for a in sorted(nodes):
     for dx, dy in [(1, 0), (0, 1)]:
@@ -52,158 +48,81 @@ for a in sorted(nodes):
         if b in nodes and tuple(sorted((a, b))) not in edges:
             shortcuts.append((a, b))
 RNG.shuffle(shortcuts)
-for a, b in shortcuts[:22]:
+for a, b in shortcuts[:42]:
     connect(a, b)
+connect(start_node, entry_node)
+connect(goal_entry, goal_node)
 
-# A discreet 6 x 6 clearing blends into the maze, with narrow approach passages.
-carve(27, 27, 6, 6)
-carve(27, 23, 2, 6)
-carve(27, 31, 2, 6)
-carve(23, 27, 6, 2)
-carve(31, 27, 6, 2)
+# Six separate positions in one compact 2x3 block, facing a common two-wide exit.
+spawns = [(3, 5), (4, 5), (3, 4), (4, 4), (3, 3), (4, 3)]
+trophy = (55, 55)
+goal_tiles = {(x, y) for y in (55, 56) for x in (55, 56)}
+distances, previous = {spawns[0]: 0}, {spawns[0]: None}
+queue = deque([spawns[0]])
+while queue:
+    x, y = queue.popleft()
+    for dx, dy in DIRECTIONS:
+        p = x + dx, y + dy
+        if p in walkable and p not in distances:
+            distances[p] = distances[x, y] + 1
+            previous[p] = (x, y)
+            queue.append(p)
+assert set(distances) == walkable, "Disconnected passages"
+assert all(p in distances for p in spawns + [trophy])
+assert 100 <= distances[trophy] <= 150, "Keep the goal distant without a long detour"
+assert len(set(spawns)) == 6
+assert sum(goal_node in edge for edge in edges) == 1, "The finish has one entrance"
+assert all(0 < x < SIZE - 1 and 0 < y < SIZE - 1 for x, y in walkable)
+assert not any(all((x + dx, y + dy) in walkable for dy in range(3) for dx in range(3))
+               for y in range(SIZE - 2) for x in range(SIZE - 2)), "Passages exceed two tiles"
 
-# Six little starting courts, distributed around the outer maze.
-spawns = [(3, 3), (55, 3), (3, 55), (55, 55), (27, 3), (27, 55)]
-for x, y in spawns:
-    carve(x - 1, y - 1, 4, 4)
-
-
-# Occasional wider clearings contain individual obstacles, never rows of trees.
-# Each tree/rock has floor on all four sides so players can walk around it.
-clearings = [(11, 11), (43, 11), (11, 43), (43, 43),
-             (27, 11), (27, 47), (47, 27), (11, 27)]
-scenery = {}
-rivers = {}
-bridges = set()
-grass_tiles = set()
-for i, (x, y) in enumerate(clearings):
-    carve(x - 2, y - 2, 6, 6)
-    scenery[x, y] = 201 + i % 4
-    scenery[x + 2, y + 1] = 161 + i % 4
-    grass_tiles.update((xx, yy) for yy in range(y - 2, y + 4) for xx in range(x - 2, x + 4))
-    # A short capped stream beside the tree; a bridge preserves the north entrance.
-    for dx, gid in [(-1, 109), (0, 89), (1, 97), (2, 111)]:
-        rivers[x + dx, y - 2] = gid
-    bridges.add((x + 1, y - 2))
-walkable.difference_update(scenery)
-walkable.difference_update(set(rivers) - bridges)
+# Shared pickups on the main route, with two early targets to compete over.
+path, p = [], trophy
+while p is not None:
+    path.append(p)
+    p = previous[p]
+path.reverse()
+steps = [6, 12] + [round((len(path) - 1) * f) for f in (.22, .36, .5, .64, .78, .9)]
+item_positions = [path[step] for step in steps]
+assert len(set(item_positions)) == 8
+assert not set(item_positions) & (set(spawns) | goal_tiles)
 
 ground, grass, sanctuary, walls, details, collision = [], [], [], [], [], []
 for y in range(SIZE):
     for x in range(SIZE):
-        p = (x, y)
+        p = x, y
         open_tile = p in walkable
         variation = (x * 73 + y * 37 + x * y * 11) % 100
-        # Broad areas of plain stone, earth and grass; no checkerboard or stair floors.
-        central = 27 <= x <= 32 and 27 <= y <= 32
-        floor = 33 if open_tile and not central and (x // 10 + y // 10) % 3 == 0 else 49
-        grassy = p in grass_tiles and p not in rivers
-        if p in rivers:
-            floor = rivers[p]
+        floor = 33 if (x // 10 + y // 10) % 3 == 0 else 49
+        grassy = open_tile and (x // 8 + y // 8) % 4 == 1 and p not in goal_tiles and p not in spawns
         if p in spawns:
             floor = 193
-            grassy = False
-        if central:
-            floor = 33 if x in (27, 32) or y in (27, 32) else 49
+        if p in goal_tiles:
+            floor = 49
         ground.append(floor)
         grass.append(49 if grassy else 0)
-        sanctuary.append(49 if 28 <= x <= 31 and 28 <= y <= 31 else 0)
-        obstacle = 0
-        detail = scenery.get(p, 0)
-        if not open_tile and not detail and p not in rivers:
-            obstacle = (209 if variation < 16 else 233) + (x + y) % 4
-        # Walls define the maze; trees and rocks are isolated obstacles in wider areas.
-        walls.append(obstacle)
+        sanctuary.append(49 if p in goal_tiles else 0)
+        # Existing tree/rock art decorates blocked cells without altering the passages.
+        detail = 0
+        if not open_tile and variation < 5 and 2 < x < 57 and 2 < y < 57:
+            detail = (201 if variation < 3 else 161) + (x + y) % 4
+        walls.append((209 if variation < 16 else 233) + (x + y) % 4 if not open_tile and not detail else 0)
         details.append(detail)
-        collision.append(49 if not open_tile else 0)
-
-# Verify reachability across every passage, spawn and the completely clear central square.
-seen = {spawns[0]}
-queue = deque(seen)
-while queue:
-    x, y = queue.popleft()
-    for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-        p = x + dx, y + dy
-        if p in walkable and p not in seen:
-            seen.add(p)
-            queue.append(p)
-assert seen == walkable, "Disconnected passages"
-assert all(p in seen for p in spawns)
-assert all((x, y) in seen for y in range(27, 33) for x in range(27, 33))
-assert all(not walls[y * SIZE + x] and not details[y * SIZE + x]
-           for y in range(27, 33) for x in range(27, 33))
-assert all(ground[y * SIZE + x] == 193 for x, y in spawns)
-assert sum(g == 193 for g in ground) == len(spawns), "Only spawns have blue markings"
-assert all((x, y) in seen for x, y in bridges), "Bridges must stay reachable"
-assert all(collision[y * SIZE + x] for x, y in set(rivers) - bridges)
-assert all((x + dx, y + dy) in walkable for x, y in scenery
-           for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]), "Scenery must be isolated"
-assert all(not collision[i] or walls[i] or details[i] or (i % SIZE, i // SIZE) in rivers
-           for i in range(SIZE * SIZE))
-assert all(0 < x < SIZE - 1 and 0 < y < SIZE - 1 for x, y in walkable)
-
-# Six shared boosts: one exactly eight walking steps from each spawn.
-item_positions = []
-for spawn in spawns:
-    distances = {spawn: 0}
-    queue = deque([spawn])
-    while queue:
-        x, y = queue.popleft()
-        if distances[x, y] == 8:
-            continue
-        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-            p = x + dx, y + dy
-            if p in walkable and p not in distances:
-                distances[p] = distances[x, y] + 1
-                queue.append(p)
-    candidates = [p for p, distance in distances.items() if distance == 8 and p not in spawns
-                  and p not in item_positions and p not in bridges]
-    assert candidates, "Every spawn needs a boost at equal walking distance"
-    chosen = max(candidates, key=lambda p: min(abs(p[0]-s[0])+abs(p[1]-s[1]) for s in spawns if s != spawn))
-    item_positions.append(chosen)
-assert len(set(item_positions)) == 6
-
-
-def walking_distances(sources):
-    distances = {tuple(p): 0 for p in sources}
-    queue = deque(distances)
-    while queue:
-        x, y = queue.popleft()
-        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-            p = x + dx, y + dy
-            if p in walkable and p not in distances:
-                distances[p] = distances[x, y] + 1
-                queue.append(p)
-    return distances
-
-
-# Only two extra boosts, in opposite interior regions. Keep the six equal-distance
-# starting boosts and avoid giving a spawn a closer second pickup.
-spawn_distances = walking_distances(spawns)
-for target_x, target_y in [(19, 31), (39, 27)]:
-    item_distances = walking_distances(item_positions)
-    candidates = [p for p in sorted(walkable)
-                  if spawn_distances[p] >= 16 and item_distances[p] >= 12
-                  and p not in bridges and not (27 <= p[0] <= 32 and 27 <= p[1] <= 32)
-                  and ((p[0] < 30) == (target_x < 30))]
-    assert candidates, "Extra boosts must remain separated from spawns and each other"
-    item_positions.append(min(candidates, key=lambda p: abs(p[0]-target_x)+abs(p[1]-target_y)))
-assert len(set(item_positions)) == 8
+        collision.append(0 if open_tile else 49)
+assert sum(g == 193 for g in ground) == 6
+assert all(not collision[i] or walls[i] or details[i] for i in range(SIZE * SIZE))
 
 properties = [
     {"name": "spawnPositions", "type": "string", "value": json.dumps(spawns)},
-    {"name": "trophyPosition", "type": "string", "value": "[30, 30]"},
+    {"name": "trophyPosition", "type": "string", "value": json.dumps(trophy)},
     {"name": "boostPositions", "type": "string", "value": json.dumps(item_positions)},
-    {"name": "description", "type": "string", "value": "Laberinto de piedra, tierra y hierba con arroyos, spawns marcados y plaza para la copa"},
+    {"name": "description", "type": "string", "value": "Pasillos de dos casillas, salida compartida y copa en el extremo opuesto"},
 ]
 layers = []
 for i, (name, data, visible, offset) in enumerate([
-    ("ground", ground, True, 0),
-    ("grass", grass, True, 0),
-    ("sanctuary", sanctuary, True, 0),
-    ("walls", walls, True, -110),
-    ("details", details, True, -110),
-    ("collision", collision, False, 0),
+    ("ground", ground, True, 0), ("grass", grass, True, 0),
+    ("sanctuary", sanctuary, True, 0), ("walls", walls, True, -110),
+    ("details", details, True, -110), ("collision", collision, False, 0),
 ], 1):
     layers.append(dict(id=i, name=name, type="tilelayer", width=SIZE, height=SIZE,
                        x=0, y=0, opacity=1, visible=visible, offsetx=0, offsety=offset, data=data))
@@ -218,7 +137,6 @@ map_data = dict(compressionlevel=-1, width=SIZE, height=SIZE, infinite=False,
                 nextlayerid=7, nextobjectid=1, properties=properties, layers=layers,
                 tilesets=[{"firstgid": 1, "source": "map_tiles.tsx"}])
 (ASSETS / "map.tmj").write_text(json.dumps(map_data, indent=2) + "\n", encoding="utf-8")
-
 root = ET.Element("map", dict(version="1.10", tiledversion="1.12.2", orientation="isometric",
                   renderorder="right-down", width=str(SIZE), height=str(SIZE), tilewidth="232",
                   tileheight="110", infinite="0", nextlayerid="7", nextobjectid="1"))
@@ -235,5 +153,9 @@ for layer in layers:
     ET.SubElement(el, "data", encoding="csv").text = "\n" + ",\n".join(
         ",".join(map(str, layer["data"][y * SIZE:(y + 1) * SIZE])) for y in range(SIZE)) + "\n"
 ET.indent(root)
-ET.ElementTree(root).write(ASSETS / "map.tmx", encoding="UTF-8", xml_declaration=True)
-print(f"Maze generated: {SIZE} x {SIZE}, {len(seen)} connected walkable tiles, 6 spawns, clear 6 x 6 plaza.")
+xml = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
+for target in (ASSETS / "map.tmx", ROOT / "tiled/map.tmx"):
+    target.write_bytes(xml)
+assert (ASSETS / "map_tiles.tsx").read_bytes() == (ROOT / "tiled/map_tiles.tsx").read_bytes()
+print(f"Maze: {SIZE}x{SIZE}, {len(walkable)} connected tiles, 2-wide passages, "
+      f"six nearby spawns, trophy {trophy}, {distances[trophy]} steps from the front spawn.")

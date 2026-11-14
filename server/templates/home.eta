@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/mvp.css">
     <link rel="stylesheet" href="/el_meu.css">
     <!-- per afegir interactivitat a la pàgina -->
+    <script src="/vendor/axios/axios.min.js"></script>
     <script defer src="/el_meu.js"></script>
 </head>
 
@@ -21,6 +22,9 @@
         <header class="home-header">
             <img class="home-logo" src="/images/home.png" alt="Dos gats davant d'un ordinador">
             <h1>La meva pàgina</h1>
+            <% if (it.user) { %>
+                <p>Sessió iniciada com <strong><%= it.user.username %></strong></p>
+            <% } %>
             <% /* <div class="home-feedback">feedback</div> */ %>
         </header>
         <section class="home-actions">

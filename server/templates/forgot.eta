@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <meta charset="utf-8">
+    <title>La meva pàgina :: Recuperar contrasenya</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <script src="/vendor/axios/axios.min.js"></script>
+    <script defer src="js/forgot.js"></script>
+</head>
+
+<body class="auth-page forgot-page">
+    <main class="auth-shell forgot-shell">
+        <header class="auth-heading">
+            <h1><span class="auth-title-outline" aria-hidden="true">La meva pàgina</span><a href="/">La meva pàgina</a></h1>
+            <div class="auth-feedback" role="alert"></div>
+        </header>
+
+        <section class="auth-form-section">
+            <form id="forgot-form" class="auth-card forgot-card" method="post" action="/api/forgot-password">
+                <img class="auth-illustration forgot-illustration" src="/images/login.png" alt="" aria-hidden="true">
+                <header>
+                    <h2>Recuperar contrasenya</h2>
+                </header>
+
+                <label for="forgot_email">Correu electrònic</label>
+                <input id="forgot_email" type="email" name="email" autocomplete="email" maxlength="254" required />
+            </form>
+            <button class="animated-submit forgot-submit" type="submit" name="forgot_password" value="1" form="forgot-form">
+                <span class="button-label">Enviar enllaç</span>
+            </button>
+        </section>
+
+        <section class="auth-switch">
+            <a href="/login">Tornar a l'inici de sessió</a>
+        </section>
+    </main>
+</body>
+
+</html>

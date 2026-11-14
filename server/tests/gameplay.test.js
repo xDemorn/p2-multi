@@ -1,6 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import jwt from "jsonwebtoken";
 import { GameRoom } from "../GameRoom.js";
+import { createToken, jwtSecret } from "../utils.js";
+import { straight, trophy, trophyNeighbors, trophyCrossing, property, directions, isOpen } from "./map-helpers.js";
+
+const { x: X, y: Y } = straight;
+
+test("banned login tokens cannot join a game room", () => {
+  const token = createToken({ id: 1, username: "banned", isBanned: true });
+  assert.equal(jwt.verify(token, jwtSecret).isBanned, true);
+  const room = { state: { phase: "lobby" }, clients: [] };
+  assert.throws(() => GameRoom.prototype.onAuth.call(room, {}, { token }, { headers: {} }), /Banned account/);
+});
 
 function harness() {
   let now = 0, sequence = 0;
@@ -46,24 +58,47 @@ function harness() {
   return { room, clock, addPlayer, boostAt, move: handlers.get("moveTo"), latency: handlers.get("latency") };
 }
 
+test("starting a six-player room puts all teams at the grouped map spawns", () => {
+  const h = harness();
+  h.room.state.phase = "lobby";
+  const players = Array.from({ length: 6 }, (_, i) => h.addPlayer(`team${i + 1}`, 0, 0).player);
+  players.forEach((player, i) => { player.team = i + 1; });
+  h.room.checkStart();
+  assert.equal(h.room.state.phase, "playing");
+  assert.deepEqual(players.map((player) => [player.x, player.y]), property("spawnPositions"));
+});
+
+test("nearby starting players can contest the same free tile with their initial range", () => {
+  const h = harness();
+  const spawns = property("spawnPositions");
+  const a = h.addPlayer("first", ...spawns[0]), b = h.addPlayer("second", ...spawns[1]);
+  const target = { x: spawns[0][0], y: spawns[0][1] + 1 };
+  h.move(a.client, { ...target, clickedAt: Date.now() - 100 });
+  h.move(b.client, { ...target, clickedAt: Date.now() - 50 });
+  assert.equal(h.room.destinationClaims.get(`${target.x},${target.y}`).candidates.length, 2);
+  h.clock.advance(1150);
+  assert.deepEqual([a.player.x, a.player.y], [target.x, target.y]);
+  assert.notDeepEqual([b.player.x, b.player.y], [target.x, target.y]);
+});
+
 test("base range is three; a collected boost allows four, but not five", () => {
   const h = harness();
-  const { client, player } = h.addPlayer("one", 27, 27);
+  const { client, player } = h.addPlayer("one", X, Y);
   assert.equal(player.moveRange, 3);
-  h.move(client, { x: 31, y: 27 });
+  h.move(client, { x: X + 4, y: Y });
   assert.equal(h.room.destinationClaims.size, 0);
-  h.boostAt(27, 27);
-  h.room.collectBoost(player, 27, 27);
+  h.boostAt(X, Y);
+  h.room.collectBoost(player, X, Y);
   assert.equal(player.moveRange, 4);
-  h.move(client, { x: 32, y: 27 });
+  h.move(client, { x: X + 5, y: Y });
   assert.equal(h.room.destinationClaims.size, 0);
-  h.move(client, { x: 31, y: 27 });
-  assert.equal(h.room.destinationClaims.get("31,27").candidates[0].path.length, 5);
+  h.move(client, { x: X + 4, y: Y });
+  assert.equal(h.room.destinationClaims.get(`${X + 4},${Y}`).candidates[0].path.length, 5);
 });
 
 test("player ping is synchronized independently and rejects invalid measurements", () => {
   const h = harness();
-  const a = h.addPlayer("one", 27, 27), b = h.addPlayer("two", 30, 30);
+  const a = h.addPlayer("one", X, Y), b = h.addPlayer("two", X + 3, Y + 1);
   assert.equal(a.player.ping, -1);
   h.latency(a.client, 42.4);
   h.latency(b.client, 175);
@@ -78,30 +113,103 @@ test("player ping is synchronized independently and rejects invalid measurements
   assert.equal(h.room.clientRtts.has("one"), false);
 });
 
+test("boosts stop at seven and a capped player leaves pickups for another player", () => {
+  const h = harness();
+  const capped = h.addPlayer("capped", X, Y).player;
+  const other = h.addPlayer("other", X, Y + 1).player;
+  assert.equal(h.room.state.maxMoveRange, 7);
+  const pickups = [...h.room.state.boosts.values()];
+  h.room.state.boosts.clear();
+  function putBoost(x, y) {
+    const boost = pickups.pop();
+    boost.x = x; boost.y = y;
+    h.room.state.boosts.set(`boost${pickups.length}`, boost);
+  }
+  for (let range = 4; range <= 7; range++) {
+    putBoost(X, Y);
+    h.room.collectBoost(capped, X, Y);
+    assert.equal(capped.moveRange, range);
+    assert.equal(h.room.state.boosts.size, 0);
+  }
+  putBoost(X + 1, Y);
+  h.room.collectBoost(capped, X + 1, Y);
+  assert.equal(capped.moveRange, 7);
+  assert.equal(h.room.state.boosts.size, 1);
+  h.room.collectBoost(other, X + 1, Y);
+  assert.equal(other.moveRange, 4);
+  assert.equal(h.room.state.boosts.size, 0);
+});
+
+test("the server accepts seven steps at maximum range and rejects eight", () => {
+  const h = harness();
+  const start = property("spawnPositions")[0];
+  const { client, player } = h.addPlayer("one", ...start);
+  player.moveRange = 7;
+  const queue = [[...start, 0]], seen = new Set([start.join(",")]);
+  const targets = new Map();
+  for (let i = 0; i < queue.length && !targets.has(8); i++) {
+    const [x, y, distance] = queue[i];
+    targets.set(distance, { x, y });
+    for (const [dx, dy] of directions) {
+      const key = `${x + dx},${y + dy}`;
+      if (isOpen(x + dx, y + dy) && !seen.has(key)) {
+        seen.add(key); queue.push([x + dx, y + dy, distance + 1]);
+      }
+    }
+  }
+  h.move(client, targets.get(8));
+  assert.equal(h.room.destinationClaims.size, 0);
+  h.move(client, targets.get(7));
+  assert.equal(h.room.destinationClaims.size, 1);
+  h.clock.advance(250 + 2100);
+  assert.deepEqual([player.x, player.y], [targets.get(7).x, targets.get(7).y]);
+  assert.equal(player.moveRange, 7);
+});
+
+test("reaching seven during movement leaves later boosts along that same path untouched", () => {
+  const h = harness();
+  const { client, player } = h.addPlayer("one", X, Y);
+  player.moveRange = 6;
+  const boosts = [...h.room.state.boosts.values()].slice(0, 2);
+  h.room.state.boosts.clear();
+  boosts.forEach((boost, i) => {
+    boost.x = X + i + 1; boost.y = Y;
+    h.room.state.boosts.set(`boost${i}`, boost);
+  });
+  h.move(client, { x: X + 3, y: Y });
+  h.clock.advance(250 + 300);
+  assert.equal(player.moveRange, 7);
+  assert.equal(h.room.state.boosts.has("boost0"), false);
+  h.clock.advance(600);
+  assert.equal(player.moveRange, 7);
+  assert.equal(h.room.state.boosts.has("boost1"), true);
+  assert.equal(player.x, X + 3);
+});
+
 test("boosts are collected on arrival at an intermediate tile, once only", () => {
   const h = harness();
-  const { client, player } = h.addPlayer("one", 27, 27);
-  h.boostAt(28, 27);
-  h.move(client, { x: 30, y: 27 });
+  const { client, player } = h.addPlayer("one", X, Y);
+  h.boostAt(X + 1, Y);
+  h.move(client, { x: X + 3, y: Y });
   h.clock.advance(250 + 299);
   assert.equal(player.moveRange, 3);
   assert.equal(h.room.state.boosts.size, 1);
   h.clock.advance(1);
   assert.equal(player.moveRange, 4);
   assert.equal(h.room.state.boosts.size, 0);
-  h.room.collectBoost(player, 28, 27);
+  h.room.collectBoost(player, X + 1, Y);
   assert.equal(player.moveRange, 4);
   h.clock.advance(600);
   assert.equal(player.moving, false);
-  assert.equal(player.x, 30);
+  assert.equal(player.x, X + 3);
 });
 
 test("a disputed destination awards its boost only to the winning player", () => {
   const h = harness();
-  const a = h.addPlayer("one", 27, 27), b = h.addPlayer("two", 30, 30);
-  h.boostAt(30, 27);
-  h.move(a.client, { x: 30, y: 27, clickedAt: Date.now() - 100 });
-  h.move(b.client, { x: 30, y: 27, clickedAt: Date.now() - 50 });
+  const a = h.addPlayer("one", X, Y), b = h.addPlayer("two", X + 3, Y + 1);
+  h.boostAt(X + 3, Y);
+  h.move(a.client, { x: X + 3, y: Y, clickedAt: Date.now() - 100 });
+  h.move(b.client, { x: X + 3, y: Y, clickedAt: Date.now() - 50 });
   h.clock.advance(1150);
   assert.equal(a.player.moveRange, 4);
   assert.equal(b.player.moveRange, 3);
@@ -110,9 +218,9 @@ test("a disputed destination awards its boost only to the winning player", () =>
 
 test("disconnect cancels future pickups", () => {
   const h = harness();
-  const { client, player } = h.addPlayer("one", 27, 27);
-  h.boostAt(30, 27);
-  h.move(client, { x: 30, y: 27 });
+  const { client, player } = h.addPlayer("one", X, Y);
+  h.boostAt(X + 3, Y);
+  h.move(client, { x: X + 3, y: Y });
   h.clock.advance(250);
   h.room.onLeave(client);
   h.clock.advance(1000);
@@ -122,8 +230,8 @@ test("disconnect cancels future pickups", () => {
 
 test("crossing the trophy ends the round and cancels the rest of the path", () => {
   const h = harness();
-  const { client, player } = h.addPlayer("champion", 28, 30);
-  h.move(client, { x: 31, y: 30 });
+  const { client, player } = h.addPlayer("champion", ...trophyCrossing.start);
+  h.move(client, trophyCrossing.beyond);
   h.clock.advance(250 + 599);
   assert.equal(h.room.state.phase, "playing");
   h.clock.advance(1);
@@ -132,23 +240,23 @@ test("crossing the trophy ends the round and cancels the rest of the path", () =
   assert.equal(h.room.state.winnerName, "champion");
   assert.equal(h.room.state.trophyAvailable, false);
   assert.equal(h.room.destinationClaims.size, 0);
-  assert.deepEqual([player.x, player.y], [30, 30]);
+  assert.deepEqual([player.x, player.y], trophy);
   assert.equal(player.moving, false);
   h.clock.advance(10000);
-  assert.deepEqual([player.x, player.y], [30, 30]);
-  h.move(client, { x: 31, y: 30 });
+  assert.deepEqual([player.x, player.y], trophy);
+  h.move(client, trophyCrossing.beyond);
   assert.equal(h.room.destinationClaims.size, 0);
 });
 
 test("only the winner of a contested trophy tile wins, even after leaving", () => {
   const h = harness();
-  const a = h.addPlayer("first", 29, 30), b = h.addPlayer("second", 30, 29);
-  h.move(a.client, { x: 30, y: 30, clickedAt: Date.now() - 100 });
-  h.move(b.client, { x: 30, y: 30, clickedAt: Date.now() - 50 });
+  const a = h.addPlayer("first", ...trophyNeighbors[0]), b = h.addPlayer("second", ...trophyNeighbors[1]);
+  h.move(a.client, { x: trophy[0], y: trophy[1], clickedAt: Date.now() - 100 });
+  h.move(b.client, { x: trophy[0], y: trophy[1], clickedAt: Date.now() - 50 });
   h.clock.advance(550);
   assert.equal(h.room.state.winnerId, "first");
   assert.equal(b.player.moving, false);
-  h.room.finishGame("second", 30, 30);
+  h.room.finishGame("second", ...trophy);
   assert.equal(h.room.state.winnerId, "first");
   h.room.onLeave(a.client);
   assert.equal(h.room.state.winnerName, "first");
@@ -157,8 +265,8 @@ test("only the winner of a contested trophy tile wins, even after leaving", () =
 
 test("a new room resets boosts, range, trophy and winner", () => {
   const first = harness();
-  const a = first.addPlayer("one", 29, 30);
-  first.move(a.client, { x: 30, y: 30 });
+  const a = first.addPlayer("one", ...trophyNeighbors[0]);
+  first.move(a.client, { x: trophy[0], y: trophy[1] });
   first.clock.advance(550);
   const next = harness();
   const b = next.addPlayer("one", 3, 3);

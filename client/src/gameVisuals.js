@@ -59,11 +59,11 @@ export function createBoostOrb() {
   return marker;
 }
 
-export function addSanctuaryEmblem(world) {
-  const p = toScreen(29.5, 29.5);
+export function addSanctuaryEmblem(world, tileX, tileY) {
+  const p = toScreen(tileX, tileY);
   const cx = p.x + TW / 2, cy = p.y - TH / 2;
   const emblem = new Graphics();
-  for (const radius of [1.3, 1.65]) {
+  for (const radius of [.65, .9]) {
     emblem.poly([cx, cy - TH * radius / 2, cx + TW * radius / 2, cy,
       cx, cy + TH * radius / 2, cx - TW * radius / 2, cy])
       .stroke({ color: 0xaf792d, width: 3, alpha: .65 });

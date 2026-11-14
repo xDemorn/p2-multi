@@ -4,8 +4,8 @@ Isometric multiplayer game: PixiJS client + Express/Colyseus server. Two indepen
 
 ## Layout
 
-- `client/` — Vite + PixiJS game client (dev port 5173). Entry: `client/src/main.js`, markup in `client/index.html`.
-- `server/` — Express + Colyseus + Eta server (port 2567). Entry: `server/index.js`, game logic in `server/GameRoom.js`.
+- `client/` — Vite + PixiJS game client (dev port 5173). Entry: `client/src/main.js`, markup in `client/index.html`. Login, lobby and ping UI live in their own modules; PixiJS rendering is in `client/src/game/GameView.js`.
+- `server/` — Express + Colyseus + Eta server (port 2567). Entry: `server/index.js`, game logic in `server/GameRoom.js`, map/pathfinding and message handlers in `server/game/`, HTTP routes in `server/routes/`.
 - `server/` also serves a **separate** server-rendered site (home/login/register/profile) from `server/templates/*.eta` and `server/public/`. That is not the Vite game client; don't confuse the two.
 - `tiled/` — Tiled project copy of the map; the server only loads `client/public/assets/map.tmj`.
 - `.idea/` is tracked (WebStorm). Avoid committing incidental IDE changes.
@@ -15,7 +15,7 @@ Isometric multiplayer game: PixiJS client + Express/Colyseus server. Two indepen
 Requires Node ≥ 20.11 (`import.meta.dirname`, `--env-file` used by the scripts).
 
 ```bash
-cd server && npm install && cp -n .env.example .env   # .env is gitignored and required
+cd server && npm install
 cd server && npm run dev      # nodemon, loads .env
 cd server && npm start        # plain start, loads .env
 cd server && npm run db       # create SQLite schema if missing (idempotent)
@@ -23,9 +23,10 @@ cd client && npm install && npm run dev
 ```
 
 - Start the server before the client; login goes through it. Local client fallback is `http://<host>:2567`; production reads `window.__SERVER_URL__` from `/config.js`, which the client container generates from `SERVER_URL`.
+- `npm start`, `npm run dev`, and `npm run db` create a missing local `.env` from `.env.example`, preserving existing files. Start/dev also initialize SQLite tables. Automatic `.env` creation is disabled when `NODE_ENV=production`.
 - `DB_PATH`, `UPLOAD_DIR`, and `MAP_PATH` override the defaults (`server/db/data.db`, `server/public/uploads`, `client/public/assets/map.tmj`). Relative env paths resolve from the server cwd.
 - `NODE_ENV=production` makes a missing `JWT_SECRET` a startup error.
-- No test suite. Verification is `cd client && npm run build`, or the full stack with `docker compose up --build`; `npm run dev` is the way to exercise the server directly.
+- Run `node --test tests/*.test.js` in both `client/` and `server/`, then `cd client && npm run build`. The full stack can also be checked with `docker compose up --build`; `npm run dev` is the way to exercise the server directly.
 
 ## Docker / Render
 
@@ -38,7 +39,7 @@ cd client && npm install && npm run dev
 
 - Movement is server-authoritative: the client only sends `moveTo`; `GameRoom` validates bounds/collisions/occupied tiles, runs BFS, and broadcasts the path with `startTime`/`msPerTile` (300 ms). The client interpolates using a ping-derived clock offset. Don't add client-side movement prediction without changing both sides.
 - Phases are `lobby` → `playing`; the room locks after start and holds max 6 players. Each player must pick a team (1–6) before the game starts. `MIN_PLAYERS` is 1 in `GameRoom.js` even though the lobby text in `main.js` says "Needs 2+"; team IDs/colors are hardcoded in both files.
-- Auth: the Vite client gets a JWT from `/api/login` or `/api/register` and passes it to `joinOrCreate("game", { token })`; `GameRoom.onAuth` checks that option first, then falls back to the `token` cookie. The server-rendered site uses the httpOnly cookie via `server/utils.js` (`attachUser`, `auth`).
+- Auth: the Vite client only logs in (`/api/login`) and passes the JWT to `joinOrCreate("game", { token })`; registration, profile editing and password recovery/reset live on the server-rendered site (`/register`, `/profile`, `/forgot`, `/reset`). `GameRoom.onAuth` checks the token option first, then falls back to the `token` cookie. The server-rendered site uses the httpOnly cookie via `server/utils.js` (`attachUser`, `auth`).
 - `/api/register` returns `{ token }` for JSON requests and redirects to `/login` for the HTML form.
 - Eta templates receive data as `DATA_*` keys through `render()` in `server/index.js`.
 
@@ -48,3 +49,5 @@ cd client && npm install && npm run dev
 - Layers must be named `ground` and `collision` (collision drives server blocking). The tmj tileset entry must be `{"firstgid":1,"source":"map_tiles.tsx"}`; tile art is external PNGs in `_tiles/`.
 - Map is 60×60: the server derives `GRID` from the tmj width, while `client/src/utils/constants.js` hardcodes `GRID = 60`. Keep them in sync when resizing.
 - Keep `tiled/map.tmx` and `client/public/assets/map.tmx` (plus `map_tiles.tsx`) in sync; they are duplicate copies today.
+
+> ALWAYS use the ponytail skill.
