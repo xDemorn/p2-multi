@@ -14,7 +14,7 @@ FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production \
     PORT=10000 \
-    DB_PATH=/app/server/db/data.db \
+    DB_PATH=/data/data.db \
     UPLOAD_DIR=/data/uploads \
     MAP_PATH=/app/client/public/assets/map.tmj
 

@@ -24,7 +24,7 @@ export function createTwoFactorRouter({
   const router = Router();
   const allow = createLimiter(now);
 
-  // Codes and secrets must never be cached by the browser or a proxy.
+  // que no se guarden en caché los códigos
   router.use((_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -54,7 +54,7 @@ export function createTwoFactorRouter({
     res.json({ ok: true });
   });
 
-  // Disabling requires a current code, so a stolen session cannot remove the second factor.
+  // para desactivarlo hace falta un código válido
   router.post("/2fa/disable", auth, async (req, res) => {
     const user = users.getUser(req.user.username);
     if (!user) return res.status(401).json({ error: INVALID_SESSION });
@@ -67,7 +67,7 @@ export function createTwoFactorRouter({
     res.json({ ok: true });
   });
 
-  // Second login step: the challenge proves the password was already accepted.
+  // segundo paso del login
   router.post("/login/2fa", async (req, res) => {
     let challenge;
     try {

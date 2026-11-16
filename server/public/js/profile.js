@@ -108,19 +108,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-function updateProfile() {
-    const nickname = document.getElementById("data_nickname").value;
+async function updateProfile() {
+    const feedback = document.querySelector(".auth-feedback");
+    const $nickname = document.getElementById("data_nickname");
     const $avatar = document.getElementById("data_avatar");
+    const nickname = $nickname.value.trim();
+
+    if (!nickname) {
+        feedback.textContent = "El nickname no pot estar buit.";
+        return;
+    }
 
     const data = new FormData();
     data.append("nickname", nickname);
     if ($avatar.files[0]) data.append("avatar", $avatar.files[0]);
 
-    console.log(data)
+    feedback.textContent = "Desant…";
+    let profile;
+    try {
+        ({ data: profile } = await axios.put("/api/profile", data));
+    } catch (error) {
+        feedback.textContent = error.response?.data?.error || "No s'ha pogut actualitzar el perfil. Torna-ho a provar.";
+        return;
+    }
 
-    axios.put("/api/profile", data).then(res => {
-        console.log(res);
-    }).catch(err => {
-        console.log(err);
-    });
+    feedback.textContent = "Perfil actualitzat correctament.";
+    $nickname.value = profile.nickname;
+    $avatar.value = "";
+    document.querySelector(".profile-avatar-preview").src = profile.avatar;
+    document.querySelector(".profile-avatar-upload-preview-container").hidden = true;
 }

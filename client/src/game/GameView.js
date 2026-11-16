@@ -1,6 +1,6 @@
 import { Application, Assets, Container, Graphics, Sprite, Text, extensions } from "pixi.js";
 import { tiledMapLoader } from "pixi-tiledmap";
-import { GRID, TH, TW, WORLD_SCALE } from "../utils/constants.js";
+import { GRID, MS_PER_TILE, TH, TW, WORLD_SCALE } from "../utils/constants.js";
 import { $, show, toGrid, toScreen } from "../utils/functions.js";
 import { findPath, findReachableTiles } from "../utils/movement.js";
 import { loadCharacterAnimations, makeCharacterSprite, setCharacterWalking } from "../utils/characters.js";
@@ -28,6 +28,9 @@ function drawTilePreview(graphics, tiles, fillAlpha, strokeAlpha, strokeWidth) {
   }
 }
 
+const sameTiles = (a, b) => a.length === b.length
+  && a.every((tile, index) => tile.x === b[index].x && tile.y === b[index].y);
+
 export class GameView {
   sprites = {};
   anims = {};
@@ -36,6 +39,8 @@ export class GameView {
   pickupEffects = [];
   duelEffects = [];
   duelBacktracks = new Set();
+  prediction = null;
+  holding = new Set();
   started = false;
 
   constructor({ getRoom, serverNow, moveRange }) {
@@ -47,7 +52,25 @@ export class GameView {
   handleMove({ id, path, startTime, msPerTile }, phase) {
     if (phase !== "playing" && !this.duelBacktracks.has(id)) return;
     if (id === this.getRoom().sessionId) this.clearPathPreview();
+    const predicted = this.prediction;
+    if (predicted?.id === id) {
+      // es nuestro propio clic: seguimos con el tiempo local para que no salte
+      if (sameTiles(path, predicted.path)) return;
+      // hubo disputa y el camino se recorta: seguimos por el trozo común
+      if (sameTiles(path, predicted.path.slice(0, path.length))) {
+        predicted.path = path;
+        this.anims[id].path = path;
+        return;
+      }
+      this.prediction = null;
+    }
+    this.holding.delete(id);
     this.anims[id] = { path, startTime, msPerTile };
+  }
+
+  predictMove(id, path, startTime) {
+    this.prediction = { id, path };
+    this.anims[id] = { path, startTime, msPerTile: MS_PER_TILE };
   }
 
   clearPathPreview() {
@@ -67,6 +90,8 @@ export class GameView {
     for (const { label } of this.duelEffects) label.destroy();
     this.duelEffects.length = 0;
     this.duelBacktracks.clear();
+    this.prediction = null;
+    this.holding.clear();
     this.clearPathPreview();
     this.rangePreview?.clear();
   }
@@ -76,7 +101,7 @@ export class GameView {
     if (!this.rangePreview || state.phase !== "playing") return;
     const room = this.getRoom();
     const player = state.players.get(room.sessionId);
-    if (!player || player.moving) return;
+    if (!player || player.moving || this.prediction) return;
 
     const occupied = new Set();
     state.players.forEach((other, id) => {
@@ -198,10 +223,13 @@ export class GameView {
       const { x, y } = tileAtPointer(event);
       if (x < 0 || y < 0 || x >= GRID || y >= GRID) return;
       const player = currentRoom.state.players.get(currentRoom.sessionId);
-      if (!player || player.moving) return;
+      if (!player || player.moving || this.prediction) return;
       const path = findPath(player.x, player.y, x, y, GRID, this.blockedTiles);
       if (path && path.length >= 2 && path.length - 1 <= this.moveRange()) {
-        currentRoom.send("moveTo", { x, y, clickedAt: this.serverNow() });
+        const clickedAt = this.serverNow();
+        currentRoom.send("moveTo", { x, y, clickedAt });
+        // empezamos a andar ya; el servidor lo confirma después
+        this.predictMove(currentRoom.sessionId, path, clickedAt);
       }
       this.clearPathPreview();
     });
@@ -261,6 +289,11 @@ export class GameView {
         setCharacterWalking(sprite.character, 0, 0, false);
         delete this.anims[id];
         this.duelBacktracks.delete(id);
+        // esperamos a que el servidor confirme la llegada en vez de volver atrás
+        if (this.prediction?.id === id) {
+          this.holding.add(id);
+          this.prediction = null;
+        }
         continue;
       }
       const fraction = (elapsed % animation.msPerTile) / animation.msPerTile;
@@ -311,7 +344,8 @@ export class GameView {
         this.sprites[id] = container;
         this.place(container, player.x, player.y);
       }
-      if (!this.anims[id]) this.place(this.sprites[id], player.x, player.y);
+      if (!player.moving) this.holding.delete(id);
+      if (!this.anims[id] && !this.holding.has(id)) this.place(this.sprites[id], player.x, player.y);
     });
     for (const id of Object.keys(this.sprites)) {
       if (!state.players.has(id)) {

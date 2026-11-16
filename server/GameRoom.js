@@ -1,109 +1,204 @@
-import { Room } from "colyseus";
-import { Encoder, schema } from "@colyseus/schema";
-import jwt from "jsonwebtoken";
-import { parse as parseCookie } from "cookie";
-import { jwtSecret } from "./utils.js";
-import { BLOCKED, BOOSTS, SPAWNS, TROPHY } from "./game/map.js";
-import { registerMessageHandlers } from "./game/messages.js";
-
-// The initial snapshot includes the collision grid for the 60 x 60 map.
-Encoder.BUFFER_SIZE = Math.max(Encoder.BUFFER_SIZE, 32 * 1024);
+import { BLOCKED, BOOSTS, SPAWNS, TROPHY, findPath, GRID, isBlocked } from "./game/map.js";
 
 const MS_PER_TILE = 300;
 const INITIAL_MOVE_RANGE = 3;
 const MAX_MOVE_RANGE = 7;
-const MIN_PLAYERS = process.env.COOKIE_SECURE === "production" ? 2 : 1; // for testing, allow single-player start
+const MIN_PLAYERS = process.env.COOKIE_SECURE === "production" ? 2 : 1; // en local se puede probar solo
 const MAX_PLAYERS = Number(process.env.MAX_PLAYERS ?? 6);
 const LOSS_BACKTRACK_RATIO = 0.3;
+// margen para decidir quién hizo clic antes (se amplía con el ping)
+export const CLICK_ARBITRATION_MS = 100;
+// si un jugador deja de consultar durante 15 s, se le echa
+const PLAYER_TIMEOUT = 15000;
+const MAX_EVENTS = 200;
 
-const Player = schema({
-  name: "string", team: "number", x: "number", y: "number",
-  moving: "boolean", moveRange: "number", ping: "number",
-});
-const Boost = schema({ x: "number", y: "number" });
-const State = schema({
-  phase: "string", blocked: "string", players: { map: Player }, boosts: { map: Boost },
-  trophyX: "number", trophyY: "number", trophyAvailable: "boolean",
-  winnerId: "string", winnerName: "string", maxMoveRange: "number",
-});
+export class GameRoom {
+  static onWin = () => {}; // index.js lo cambia por addTrophy
 
-export class GameRoom extends Room {
-  maxClients = MAX_PLAYERS;
-
-  onCreate() {
-    this.setState(new State());
-    this.state.phase = "lobby";
-    this.state.maxMoveRange = MAX_MOVE_RANGE;
-    this.state.blocked = JSON.stringify(BLOCKED);
-    [this.state.trophyX, this.state.trophyY] = TROPHY;
-    this.state.trophyAvailable = true;
-    this.state.winnerId = "";
-    this.state.winnerName = "";
+  constructor(roomId, { maxPlayers = MAX_PLAYERS, clock } = {}) {
+    this.roomId = roomId;
+    this.maxPlayers = maxPlayers;
+    this.clock = clock ?? {
+      setTimeout: (callback, delay) => setTimeout(callback, delay),
+      clearTimeout: (timer) => clearTimeout(timer),
+    };
+    this.sessions = new Map();
     this.destinationClaims = new Map();
-    this.clientRtts = new Map();
+    this.eventSequence = 0;
     this.moveSequence = 0;
-    BOOSTS.forEach(([x, y], index) => {
-      const boost = new Boost();
-      boost.x = x;
-      boost.y = y;
-      this.state.boosts.set(String(index), boost);
-    });
-    registerMessageHandlers(this, MAX_MOVE_RANGE);
+    this.state = {
+      phase: "lobby",
+      blocked: JSON.stringify(BLOCKED),
+      players: new Map(),
+      boosts: new Map(BOOSTS.map(([x, y], index) => [String(index), { x, y }])),
+      trophyX: TROPHY[0],
+      trophyY: TROPHY[1],
+      trophyAvailable: true,
+      winnerId: "",
+      winnerName: "",
+      maxMoveRange: MAX_MOVE_RANGE,
+    };
   }
 
-  onAuth(client, options, request) {
-    if (this.state.phase !== "lobby") throw new Error("Game already started");
-    // Prefer the token passed by the client (works across origins); fall back to the cookie.
-    const token = typeof options?.token === "string" && options.token
-      ? options.token
-      : parseCookie(request.headers.cookie ?? "").token;
-    let user;
-    try {
-      user = jwt.verify(token, jwtSecret);
-    } catch {
-      throw new Error("Invalid token");
+  get locked() {
+    return this.state.phase !== "lobby";
+  }
+
+  join(user) {
+    const id = String(user.id);
+    const existing = this.sessions.get(id);
+    if (existing) {
+      existing.lastSeen = Date.now();
+      return id;
     }
-    if (user.scope) throw new Error("Invalid token");
-    if (user.isBanned) throw new Error("Banned account");
-    if (this.clients.some((client) => client.auth?.id === user.id)) throw new Error("Already connected");
-    return user;
+    this.state.players.set(id, {
+      name: user.username, team: 0, x: 0, y: 0,
+      moving: false, moveRange: INITIAL_MOVE_RANGE, ping: -1,
+    });
+    this.sessions.set(id, { lastSeen: Date.now(), events: [] });
+    return id;
   }
 
-  onJoin(client, options, auth) {
-    const player = new Player();
-    player.name = auth.username;
-    player.team = 0;
-    player.x = 0;
-    player.y = 0;
-    player.moving = false;
-    player.moveRange = INITIAL_MOVE_RANGE;
-    player.ping = -1;
-    this.state.players.set(client.sessionId, player);
-  }
-
-  onLeave(client) {
-    for (const [destination, contest] of this.destinationClaims) {
+  leave(playerId) {
+    const id = String(playerId);
+    if (!this.sessions.has(id)) return;
+    for (const [destination, contest] of [...this.destinationClaims]) {
       for (const candidate of contest.candidates) {
-        if (candidate.sessionId === client.sessionId) this.stopCandidatePickups(candidate);
+        if (candidate.playerId === id) this.stopCandidatePickups(candidate);
       }
-      contest.candidates = contest.candidates.filter((candidate) => candidate.sessionId !== client.sessionId);
-      if (contest.winner?.sessionId === client.sessionId) {
+      contest.candidates = contest.candidates.filter((candidate) => candidate.playerId !== id);
+      if (contest.winner?.playerId === id) {
         this.cancelDestinationContest(destination, contest);
       } else if (contest.status === "pending" && contest.candidates.length === 0) {
         this.clearScheduledTimer(contest.timer);
         this.destinationClaims.delete(destination);
       }
     }
-    this.clientRtts.delete(client.sessionId);
-    this.state.players.delete(client.sessionId); // frees the team automatically
+    this.sessions.delete(id);
+    this.state.players.delete(id);
     this.checkStart();
+  }
+
+  sweep(timeout = PLAYER_TIMEOUT) {
+    const deadline = Date.now() - timeout;
+    for (const [id, session] of [...this.sessions]) {
+      if (session.lastSeen < deadline) this.leave(id);
+    }
+  }
+
+  send(playerId, type, data = {}) {
+    const session = this.sessions.get(String(playerId));
+    if (!session) return;
+    session.events.push({ seq: ++this.eventSequence, type, ...data });
+    if (session.events.length > MAX_EVENTS) session.events.splice(0, session.events.length - MAX_EVENTS);
+  }
+
+  broadcast(type, data = {}) {
+    for (const id of this.sessions.keys()) this.send(id, type, data);
+  }
+
+  snapshot(playerId, since = 0) {
+    const session = this.sessions.get(String(playerId));
+    if (!session) return null;
+    session.lastSeen = Date.now();
+    session.events = session.events.filter((event) => event.seq > since);
+    const { players, boosts, blocked, ...rest } = this.state;
+    return {
+      state: {
+        ...rest,
+        players: Object.fromEntries(players),
+        boosts: Object.fromEntries(boosts),
+        ...(since === 0 ? { blocked } : {}), // los muros solo se mandan la primera vez
+      },
+      events: session.events,
+      cursor: this.eventSequence,
+      serverTime: Date.now(),
+    };
+  }
+
+  selectTeam(playerId, team) {
+    if (this.state.phase !== "lobby") return;
+    if (!Number.isInteger(team) || team < 1 || team > 6) return;
+    const id = String(playerId);
+    const player = this.state.players.get(id);
+    if (!player) return;
+    const taken = [...this.state.players.entries()]
+      .some(([otherId, other]) => other.team === team && otherId !== id);
+    if (taken) return this.send(id, "error", { message: "Team already taken" });
+    player.team = team;
+    this.checkStart();
+  }
+
+  setLatency(playerId, rtt) {
+    if (!Number.isFinite(rtt) || rtt < 0 || rtt > 5000) return;
+    const player = this.state.players.get(String(playerId));
+    if (!player) return;
+    player.ping = Math.round(rtt);
+  }
+
+  moveTo(playerId, message) {
+    if (this.state.phase !== "playing") return;
+    const id = String(playerId);
+    const player = this.state.players.get(id);
+    if (!player || player.moving) return; // no se puede cambiar el destino a medio camino
+    const { x, y } = message ?? {};
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return;
+    if (x < 0 || y < 0 || x >= GRID || y >= GRID || isBlocked(x, y)) return;
+    if ([...this.state.players.values()].some((other) => other !== player && other.x === x && other.y === y)) return;
+    const path = findPath(player.x, player.y, x, y);
+    if (!path || path.length < 2 || path.length - 1 > Math.min(player.moveRange, MAX_MOVE_RANGE)) return;
+
+    const destination = `${x},${y}`;
+    const now = Date.now();
+    const reportedClickTime = message?.clickedAt;
+    // usamos la hora del clic que manda el cliente, si es razonable
+    const clickedAt = Number.isFinite(reportedClickTime)
+      && reportedClickTime >= now - 5000 && reportedClickTime <= now + 100
+      ? reportedClickTime
+      : now;
+    const candidate = {
+      playerId: id,
+      player,
+      x,
+      y,
+      path,
+      clickedAt,
+      sequence: ++this.moveSequence,
+    };
+
+    let contest = this.destinationClaims.get(destination);
+    if (contest?.status === "active") {
+      // si la disputa ya se resolvió, este clic llega tarde y pierde
+      if (clickedAt < contest.winner.clickedAt) {
+        return this.send(id, "error", { message: "La disputa por esta casilla ya está resuelta" });
+      }
+      candidate.path = path.slice(0, -1);
+      if (candidate.path.length === 0) candidate.path = [path[0]];
+      contest.candidates.push(candidate);
+      player.moving = true;
+      this.startCandidateMove(candidate, candidate.path);
+      return;
+    }
+
+    if (!contest) {
+      contest = { status: "pending", candidates: [], winner: null, timer: null };
+      this.destinationClaims.set(destination, contest);
+      const maxRtt = Math.max(0, ...[...this.state.players.values()].map((other) => other.ping ?? 0));
+      const arbitrationWindow = Math.min(1500, Math.max(CLICK_ARBITRATION_MS, Math.ceil(maxRtt / 2) + 50));
+      contest.timer = this.clock.setTimeout(
+        () => this.resolveDestinationClaim(destination, contest),
+        arbitrationWindow,
+      );
+    }
+    contest.candidates.push(candidate);
+    player.moving = true;
   }
 
   resolveDestinationClaim(destination, contest) {
     if (this.state.phase !== "playing") return;
     if (this.destinationClaims.get(destination) !== contest) return;
     contest.candidates = contest.candidates.filter(
-      (candidate) => this.state.players.get(candidate.sessionId) === candidate.player,
+      (candidate) => this.state.players.get(candidate.playerId) === candidate.player,
     );
     if (contest.candidates.length === 0) {
       this.destinationClaims.delete(destination);
@@ -118,7 +213,7 @@ export class GameRoom extends Room {
       if (candidate === contest.winner) {
         candidate.player.moving = true;
       } else {
-        // Losers walk as far as the tile before the contested destination.
+        // los que pierden se paran una casilla antes
         candidate.path = candidate.path.slice(0, -1);
         if (candidate.path.length === 0) candidate.path = [{ x: candidate.player.x, y: candidate.player.y }];
         candidate.player.moving = true;
@@ -127,8 +222,7 @@ export class GameRoom extends Room {
 
     const winner = contest.winner;
     const duration = (winner.path.length - 1) * MS_PER_TILE;
-    // Resolve the contest before the winner's arrival callbacks (including the trophy pickup)
-    // so every client can show the same impact before any round-ending state change.
+    // primero se resuelve el duelo y después la llegada (y la copa)
     contest.timer = this.clock.setTimeout(
       () => this.finishDestinationContest(destination, contest),
       duration,
@@ -140,14 +234,14 @@ export class GameRoom extends Room {
     candidate.path = path;
     candidate.startTime = Date.now();
     candidate.pickupTimers = path.slice(1).map((tile, index) => this.clock.setTimeout(() => {
-      if (this.state.phase !== "playing" || this.state.players.get(candidate.sessionId) !== candidate.player) return;
+      if (this.state.phase !== "playing" || this.state.players.get(candidate.playerId) !== candidate.player) return;
       this.collectBoost(candidate.player, tile.x, tile.y);
       if (this.state.trophyAvailable && tile.x === this.state.trophyX && tile.y === this.state.trophyY) {
-        this.finishGame(candidate.sessionId, tile.x, tile.y);
+        this.finishGame(candidate.playerId, tile.x, tile.y);
       }
     }, (index + 1) * MS_PER_TILE));
     this.broadcast("move", {
-      id: candidate.sessionId,
+      id: candidate.playerId,
       path,
       startTime: candidate.startTime,
       msPerTile: MS_PER_TILE,
@@ -164,27 +258,31 @@ export class GameRoom extends Room {
     }
   }
 
-  finishGame(sessionId, x, y) {
+  finishGame(playerId, x, y) {
     if (this.state.phase !== "playing" || !this.state.trophyAvailable) return;
-    const winner = this.state.players.get(sessionId);
-    if (!winner || x !== this.state.trophyX || y !== this.state.trophyY) return;
+    const player = this.state.players.get(String(playerId));
+    if (!player || x !== this.state.trophyX || y !== this.state.trophyY) return;
     this.state.phase = "finished";
     this.state.trophyAvailable = false;
-    this.state.winnerId = sessionId;
-    this.state.winnerName = winner.name;
+    this.state.winnerId = String(playerId);
+    this.state.winnerName = player.name;
+    try {
+      GameRoom.onWin(String(playerId));
+    } catch (error) {
+      console.error("Could not record the trophy:", error);
+    }
     for (const [destination, contest] of [...this.destinationClaims]) {
       this.cancelDestinationContest(destination, contest);
     }
-    this.state.players.forEach((player) => {
-      player.moving = false;
+    this.state.players.forEach((other) => {
+      other.moving = false;
     });
-    winner.x = x;
-    winner.y = y;
+    player.x = x;
+    player.y = y;
   }
 
   clearScheduledTimer(timer) {
-    if (typeof timer?.clear === "function") timer.clear();
-    else if (typeof this.clock.clearTimeout === "function") this.clock.clearTimeout(timer);
+    if (timer !== undefined && timer !== null) this.clock.clearTimeout(timer);
   }
 
   stopCandidatePickups(candidate) {
@@ -196,7 +294,7 @@ export class GameRoom extends Room {
     if (this.state.phase !== "playing") return;
     if (this.destinationClaims.get(destination) !== contest) return;
     const winner = contest.winner;
-    if (!winner || this.state.players.get(winner.sessionId) !== winner.player) {
+    if (!winner || this.state.players.get(winner.playerId) !== winner.player) {
       this.cancelDestinationContest(destination, contest);
       return;
     }
@@ -209,7 +307,7 @@ export class GameRoom extends Room {
     const impactTime = Date.now();
     const rollbackPlans = [];
     for (const loser of contest.candidates) {
-      if (loser === winner || this.state.players.get(loser.sessionId) !== loser.player) continue;
+      if (loser === winner || this.state.players.get(loser.playerId) !== loser.player) continue;
       this.stopCandidatePickups(loser);
 
       const steps = Math.min(
@@ -230,10 +328,10 @@ export class GameRoom extends Room {
 
     if (rollbackPlans.length > 0) {
       this.broadcast("duel", {
-        winnerId: winner.sessionId,
+        winnerId: winner.playerId,
         x: winner.x,
         y: winner.y,
-        loserIds: rollbackPlans.map(({ loser }) => loser.sessionId),
+        loserIds: rollbackPlans.map(({ loser }) => loser.playerId),
         startTime: impactTime,
         duration: 900,
       });
@@ -241,14 +339,14 @@ export class GameRoom extends Room {
 
     for (const { loser, rollbackPath, finalTile } of rollbackPlans) {
       this.broadcast("move", {
-        id: loser.sessionId,
+        id: loser.playerId,
         path: rollbackPath.length ? rollbackPath : [finalTile],
         startTime: impactTime,
         msPerTile: MS_PER_TILE,
       });
 
       this.clock.setTimeout(() => {
-        if (this.state.phase !== "playing" || this.state.players.get(loser.sessionId) !== loser.player) return;
+        if (this.state.phase !== "playing" || this.state.players.get(loser.playerId) !== loser.player) return;
         loser.player.x = finalTile.x;
         loser.player.y = finalTile.y;
         loser.player.moving = false;
@@ -261,7 +359,7 @@ export class GameRoom extends Room {
     this.destinationClaims.delete(destination);
     for (const candidate of contest.candidates) {
       this.stopCandidatePickups(candidate);
-      if (this.state.players.get(candidate.sessionId) !== candidate.player) continue;
+      if (this.state.players.get(candidate.playerId) !== candidate.player) continue;
       const elapsed = candidate.startTime ? Date.now() - candidate.startTime : 0;
       const step = Math.min(candidate.path.length - 1, Math.max(0, Math.floor(elapsed / MS_PER_TILE)));
       const tile = candidate.path[step] ?? { x: candidate.player.x, y: candidate.player.y };
@@ -269,7 +367,7 @@ export class GameRoom extends Room {
       candidate.player.y = tile.y;
       candidate.player.moving = false;
       this.broadcast("move", {
-        id: candidate.sessionId,
+        id: candidate.playerId,
         path: [tile],
         startTime: Date.now(),
         msPerTile: MS_PER_TILE,
@@ -285,7 +383,6 @@ export class GameRoom extends Room {
         [player.x, player.y] = SPAWNS[player.team - 1];
       });
       this.state.phase = "playing";
-      this.lock();
     }
   }
 }

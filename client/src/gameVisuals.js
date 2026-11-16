@@ -2,8 +2,8 @@ import { Container, Graphics, Sprite, Text } from "pixi.js";
 import { GRID, TW, TH } from "./utils/constants.js";
 import { toScreen } from "./utils/functions.js";
 
-// All floor images share one painter's order. A separate grass layer would draw
-// its cube sides over neighboring ground, making a level floor look elevated.
+// todo el suelo se pinta en el mismo orden; si la hierba fuera aparte, sus
+// lados taparían el suelo vecino y parecería elevado
 export function renderTerrainSurfaces(map) {
   const floor = map.getChildByLabel("ground");
   if (!floor) return;

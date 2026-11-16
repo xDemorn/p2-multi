@@ -60,7 +60,7 @@ export function createAuthRouter({ allowedOrigins }) {
         error: "Aquest compte està bloquejat.", banned: true, reason: user.reason, redirect: "/banned",
       });
     }
-    // The password step alone is not enough; a short-lived challenge replaces the session token.
+    // con 2FA todavía no hay sesión, solo el token temporal
     if (user.totp_enabled) {
       return res.json({ requires2fa: true, challenge: createTwoFactorChallenge(user) });
     }

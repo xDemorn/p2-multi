@@ -6,32 +6,169 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>El torneo de los magos</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
   <link rel="stylesheet" href="./src/styles.css">
   <script src="/config.js"></script>
   <script type="module" src="./src/main.js"></script>
 </head>
 
 <body>
-  <div id="menu" class="screen active">
+  <!-- Acceso: login, registro y recuperar contraseña -->
+  <div id="auth" class="screen">
     <img class="screen-title home-title" src="/assets/interfaz/tittle.png" alt="El torneo de los magos">
     <div class="stone-card home-card">
-      <p class="subtitle">Encuentra tu camino entre la piedra y los jardines.</p>
-      <div class="auth-tabs">
-        <span class="auth-tab active">Entrar</span>
-        <a id="register" class="auth-tab" href="#" target="_blank" rel="noopener">Registrarse</a>
-      </div>
       <form id="login-panel" class="auth-panel active">
-        <input id="user" aria-label="Usuario" placeholder="Usuario" autocomplete="username" required>
-        <input id="pass" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="current-password" required>
-        <input id="totp" aria-label="Código de verificación" placeholder="Código de 6 dígitos" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" hidden>
-        <button id="login-submit" class="auth-submit" type="submit">Iniciar sesión</button>
-        <a id="forgot-password-link" class="text-button" href="#" target="_blank" rel="noopener">He olvidado mi contraseña</a>
+        <h2>Iniciar sesión</h2>
+        <p class="subtitle">Demuestra quién es el mejor mago.</p>
+        <input id="user" name="username" aria-label="Usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <input id="pass" name="password" aria-label="Contraseña" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+        <input id="totp" name="totp" aria-label="Código de verificación" placeholder="Código de 6 dígitos" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" hidden>
+        <button class="auth-submit" type="submit">Entrar</button>
+        <div class="auth-links">
+          <button class="text-button" type="button" data-panel="forgot-panel">He olvidado mi contraseña</button>
+          <span>¿No tienes cuenta? <button class="text-button strong" type="button" data-panel="register-panel">Regístrate</button></span>
+        </div>
       </form>
-      <label class="field-label" for="room-id">ID de sala (opcional)</label>
-      <input id="room-id" name="roomId" type="text" placeholder="Conectar a una sala existente" autocomplete="off" spellcheck="false">
-      <div id="msg" role="status"></div>
+
+      <form id="register-panel" class="auth-panel">
+        <h2>Crear cuenta</h2>
+        <input id="reg-user" aria-label="Usuario" placeholder="Usuario (mín. 3 caracteres)" autocomplete="username" minlength="3" maxlength="63" required>
+        <input id="reg-email" aria-label="Correo electrónico" type="email" placeholder="Correo electrónico" autocomplete="email" required>
+        <label class="field-label" for="reg-birthdate">Fecha de nacimiento</label>
+        <input id="reg-birthdate" type="date" required>
+        <p id="reg-age" class="hint field-hint" aria-live="polite"></p>
+        <input id="reg-pass" aria-label="Contraseña" type="password" placeholder="Contraseña (mín. 12 caracteres)" minlength="12" autocomplete="new-password" required>
+        <input id="reg-confirm" aria-label="Repite la contraseña" type="password" placeholder="Repite la contraseña" autocomplete="new-password" required>
+        <div id="reg-pw-help"></div>
+        <button class="auth-submit" type="submit">Crear cuenta</button>
+        <div class="auth-links">
+          <span>¿Ya tienes cuenta? <button class="text-button strong" type="button" data-panel="login-panel">Inicia sesión</button></span>
+        </div>
+      </form>
+
+      <form id="forgot-panel" class="auth-panel">
+        <h2>Recuperar contraseña</h2>
+        <p class="subtitle">Te enviaremos un enlace para crear una contraseña nueva.</p>
+        <input id="forgot-email" aria-label="Correo electrónico" type="email" placeholder="Correo electrónico" autocomplete="email" required>
+        <button class="auth-submit" type="submit">Enviar enlace</button>
+        <div class="auth-links">
+          <button class="text-button" type="button" data-panel="login-panel">Volver a iniciar sesión</button>
+        </div>
+      </form>
+
+      <form id="reset-panel" class="auth-panel">
+        <h2>Nueva contraseña</h2>
+        <input id="reset-pass" aria-label="Nueva contraseña" type="password" placeholder="Nueva contraseña (mín. 12 caracteres)" minlength="12" autocomplete="new-password" required>
+        <input id="reset-confirm" aria-label="Repite la nueva contraseña" type="password" placeholder="Repite la nueva contraseña" autocomplete="new-password" required>
+        <div id="reset-pw-help"></div>
+        <button class="auth-submit" type="submit">Cambiar contraseña</button>
+        <div class="auth-links">
+          <button class="text-button" type="button" data-panel="login-panel">Volver a iniciar sesión</button>
+        </div>
+      </form>
+      <div id="msg" class="msg" role="status"></div>
     </div>
   </div>
+
+  <!-- Menú principal -->
+  <div id="home" class="screen">
+    <img class="screen-title home-title" src="/assets/interfaz/tittle.png" alt="El torneo de los magos">
+    <div class="stone-card home-card">
+      <div class="player-chip">
+        <img class="avatar" id="home-avatar" alt="">
+        <div>
+          <span class="eyebrow">BIENVENIDO, MAGO</span>
+          <strong id="home-name"></strong>
+        </div>
+        <span class="chip-trophies" title="Copas ganadas"><img src="/assets/trophy.png" alt="Copas ganadas"><b id="home-trophies">0</b></span>
+      </div>
+      <div class="menu-actions">
+        <button id="quick-play" class="auth-submit menu-main" type="button">Iniciar partida</button>
+        <button id="create-room" type="button">Crear sala</button>
+        <button id="join-toggle" type="button" aria-expanded="false" aria-controls="join-form">Unirse a sala</button>
+        <form id="join-form" class="join-form" hidden>
+          <input id="room-code" aria-label="Código de sala" placeholder="Código de sala" autocomplete="off" spellcheck="false" required>
+          <button class="auth-submit" type="submit">Entrar</button>
+        </form>
+        <button id="open-profile" type="button">Mi perfil</button>
+      </div>
+      <button id="logout" class="text-button" type="button">Cerrar sesión</button>
+      <div id="home-msg" class="msg" role="status"></div>
+    </div>
+  </div>
+
+  <!-- Perfil -->
+  <div id="profile" class="screen">
+    <div class="stone-card profile-card">
+      <span class="eyebrow">TU EXPEDIENTE</span>
+      <h2>Mi perfil</h2>
+      <form id="profile-form" class="profile-form">
+        <label class="avatar-picker" for="profile-avatar-input" title="Cambiar avatar">
+          <img class="avatar avatar-lg" id="profile-avatar" alt="Tu avatar">
+          <span>Cambiar avatar</span>
+          <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        </label>
+        <small class="hint">PNG, JPG o WebP. Máximo 2 MB.</small>
+        <dl class="profile-info">
+          <dt>Usuario</dt><dd id="profile-username"></dd>
+          <dt>Correo</dt><dd id="profile-email"></dd>
+          <dt>Nacimiento</dt><dd id="profile-birthdate"></dd>
+        </dl>
+        <div class="trophy-case">
+          <img src="/assets/trophy.png" alt="">
+          <div><strong id="profile-trophies">0</strong><span id="profile-trophies-label">copas ganadas</span></div>
+        </div>
+        <label class="field-label" for="profile-nickname">Apodo (se muestra en el menú)</label>
+        <input id="profile-nickname" maxlength="150" placeholder="Sin apodo">
+        <button class="auth-submit" type="submit">Guardar cambios</button>
+      </form>
+
+      <details class="profile-section">
+        <summary>Cambiar contraseña</summary>
+        <form id="password-form">
+          <input id="current-password" aria-label="Contraseña actual" type="password" placeholder="Contraseña actual" autocomplete="current-password" required>
+          <input id="new-password" aria-label="Nueva contraseña" type="password" placeholder="Nueva contraseña (mín. 12)" minlength="12" autocomplete="new-password" required>
+          <input id="confirm-password" aria-label="Repite la nueva contraseña" type="password" placeholder="Repite la nueva contraseña" autocomplete="new-password" required>
+          <div id="profile-pw-help"></div>
+          <button class="auth-submit" type="submit">Cambiar contraseña</button>
+        </form>
+      </details>
+
+      <details class="profile-section">
+        <summary>Verificación en dos pasos <span id="totp-badge" class="badge"></span></summary>
+        <div id="totp-off">
+          <p class="hint">Protege tu cuenta con un código de Google Authenticator o una app similar.</p>
+          <button id="totp-start" type="button">Generar código QR</button>
+          <div id="totp-setup" hidden>
+            <img id="totp-qr" alt="Código QR para configurar el 2FA" width="180" height="180">
+            <p class="hint">Clave manual: <code id="totp-secret"></code></p>
+            <input id="totp-enable-code" aria-label="Código de 6 dígitos" placeholder="Código de 6 dígitos" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+            <button id="totp-enable" class="auth-submit" type="button">Activar 2FA</button>
+          </div>
+        </div>
+        <div id="totp-on" hidden>
+          <p class="hint">Introduce un código de tu app para desactivarlo.</p>
+          <input id="totp-disable-code" aria-label="Código de 6 dígitos" placeholder="Código de 6 dígitos" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+          <button id="totp-disable" type="button">Desactivar 2FA</button>
+        </div>
+      </details>
+
+      <details class="profile-section danger">
+        <summary>Eliminar cuenta</summary>
+        <form id="delete-form">
+          <p class="hint">Esta acción no se puede deshacer.</p>
+          <input id="delete-password" aria-label="Contraseña actual" type="password" placeholder="Contraseña actual" autocomplete="current-password" required>
+          <button class="danger-button" type="submit">Eliminar mi cuenta</button>
+        </form>
+      </details>
+
+      <div id="profile-msg" class="msg" role="status"></div>
+      <button id="profile-back" class="text-button" type="button">← Volver al menú</button>
+    </div>
+  </div>
+
+  <!-- Sala -->
   <div id="lobby" class="screen">
     <img class="screen-title selection-title" src="/assets/interfaz/titulo_sinpersonajes.png" alt="El torneo de los magos">
     <div class="stone-card lobby-card selection-card">
@@ -39,8 +176,8 @@
       <div id="teams"></div>
       <div class="room-id-actions">
         <div id="roomId"></div>
-        <button id="copyRoomId" class="auth-submit" type="button">Copiar ID</button>
-        <a id="profile-link" class="auth-submit" href="#" target="_blank" rel="noopener noreferrer">Editar perfil</a>
+        <button id="copyRoomId" class="auth-submit" type="button">Copiar código</button>
+        <button id="leave-lobby" type="button">Salir al menú</button>
       </div>
       <div id="lobbyInfo"></div>
     </div>
@@ -54,10 +191,44 @@
       <p id="result-message" class="subtitle"></p>
       <div class="auth-actions">
         <button id="play-again" type="button">Jugar otra partida</button>
-        <button id="logout" type="button">Cerrar sesión</button>
+        <button id="back-menu" type="button">Volver al menú</button>
       </div>
     </div>
   </div>
+  <!-- Música y ajustes (no pausan la partida) -->
+  <div id="corner-controls">
+  <button id="music-toggle" class="hud-stat" type="button" aria-pressed="true" title="Quitar música">
+    <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M3 3l18 18"/></svg>
+    <span class="sr-only">Música</span>
+  </button>
+  <button id="settings-toggle" class="hud-stat" type="button" aria-controls="settings-panel" aria-expanded="false" aria-keyshortcuts="Escape" title="Ajustes (Esc)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    <span class="label">Ajustes</span>
+  </button>
+  </div>
+  <section id="settings-panel" class="stone-card settings-panel" hidden aria-labelledby="settings-title">
+    <h2 id="settings-title">Ajustes</h2>
+    <p id="settings-hint" class="hint" hidden>La partida sigue en marcha mientras ajustas.</p>
+    <label class="slider-row" for="music-volume">
+      <span>Música</span>
+      <input id="music-volume" type="range" min="0" max="100" step="5">
+      <output id="music-volume-value"></output>
+    </label>
+    <label class="slider-row" for="effects-volume">
+      <span>Efectos</span>
+      <input id="effects-volume" type="range" min="0" max="100" step="5">
+      <output id="effects-volume-value"></output>
+    </label>
+    <label class="check-row" for="music-on">
+      <input id="music-on" type="checkbox"> Música activada
+    </label>
+    <label class="check-row" for="mute-all">
+      <input id="mute-all" type="checkbox"> Silenciar todo
+    </label>
+    <button id="settings-leave" class="danger-button" type="button" hidden>Volver al menú principal</button>
+    <button id="settings-close" type="button">Cerrar</button>
+  </section>
   <div id="hud">
     <button id="ping-toggle" type="button" class="hud-stat" hidden aria-controls="player-pings" aria-expanded="false" aria-keyshortcuts="Tab" title="Mostrar u ocultar el ping de los jugadores (Tab)">
       <kbd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12h15m-5-5 5 5-5 5M21 5v14"/></svg>Tab</kbd>

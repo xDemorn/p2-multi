@@ -14,7 +14,7 @@ export const createToken = (u) => jwt.sign({
   ...(u.isBanned ? { isBanned: true } : {}),
 }, jwtSecret, { expiresIn: "2h" });
 
-// Short-lived proof that the password step passed; useless without the TOTP code.
+// token temporal entre la contraseña y el código 2FA
 export const createTwoFactorChallenge = (u) => jwt.sign({
   id: u.id,
   username: u.username,
@@ -28,18 +28,20 @@ export function readTwoFactorChallenge(token) {
 }
 
 export function attachUser(req, res, next) {
-  const token = req.cookies.token;
+  // el cliente manda el token en la cabecera; las páginas Eta usan la cookie
+  const bearer = /^Bearer (.+)$/.exec(req.get("authorization") ?? "")?.[1];
+  const token = bearer || req.cookies.token;
   res.locals.user = null;
 
   if (token) {
     try {
       const payload = jwt.verify(token, jwtSecret);
-      // A 2FA challenge proves the password only; it must never authenticate a request.
+      // el token temporal del 2FA no sirve como sesión
       if (payload.scope) throw new Error("not a session token");
       req.user = payload;
       res.locals.user = payload;
     } catch (err) {
-      res.clearCookie("token"); // expired or invalid
+      if (!bearer) res.clearCookie("token"); // caducado o inválido
     }
   }
   next();

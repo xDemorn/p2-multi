@@ -27,7 +27,7 @@
     <main class="auth-shell edit-shell">
         <header class="auth-heading">
             <h1><a href="/">La meva pàgina</a></h1>
-            <% /* <div class="auth-feedback">{FEEDBACK}</div> */ %>
+            <div class="auth-feedback" role="alert"></div>
         </header>
         <section class="auth-form-section">
             <form class="auth-card edit-card">

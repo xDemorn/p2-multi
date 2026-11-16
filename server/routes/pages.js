@@ -5,6 +5,13 @@ import { auth } from "../utils.js";
 export function createPagesRouter({ render }) {
   const router = Router();
 
+  // con CLIENT_URL todo pasa por el cliente (el #token del reset se conserva)
+  const clientUrl = process.env.CLIENT_URL?.replace(/\/+$/, "");
+  if (clientUrl) {
+    router.get(["/", "/login", "/register", "/profile", "/forgot", "/reset", "/delete"], (req, res) =>
+      res.redirect(`${clientUrl}/`));
+  }
+
   router.get("/", (req, res) => render(res, "home"));
   router.get("/login", (req, res) => render(res, "login"));
   router.get("/register", (req, res) => render(res, "register"));

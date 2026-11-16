@@ -14,10 +14,17 @@ const sql = fs.readFileSync(new URL("./create_db.sql", import.meta.url), "utf8")
 
 db.exec(sql);
 
-// Databases created before 2FA existed need the columns added in place.
+// columnas añadidas después (2FA y copas)
 const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
-for (const [name, definition] of [["totp_secret", "TEXT"], ["totp_enabled", "BOOLEAN DEFAULT 0"]]) {
+for (const [name, definition] of [
+  ["totp_secret", "TEXT"], ["totp_enabled", "BOOLEAN DEFAULT 0"], ["trophies", "INTEGER NOT NULL DEFAULT 0"],
+]) {
   if (!userColumns.includes(name)) db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
+}
+
+// los usuarios de prueba solo se cargan si la tabla está vacía
+if (db.prepare("SELECT COUNT(*) FROM users").pluck().get() === 0) {
+  db.exec(fs.readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));
 }
 
 db.close();

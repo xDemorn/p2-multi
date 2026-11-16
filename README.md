@@ -1,230 +1,199 @@
-# Iso Game (PixiJS + Colyseus)
+# El torneig dels mags
 
-## Mapa del laberinto
+Joc multijugador per navegador per a l'assignatura de Sistemes Multijugador (UdG).
+Fins a sis mags surten del mateix racó d'un laberint isomètric de 60 × 60 caselles i
+competeixen per arribar primer a la copa, que és a la cantonada oposada.
 
-El mapa mide 60 × 60 casillas. Todos los pasillos tienen dos casillas de ancho,
-sin plazas, claros ni zonas de salida más anchas. Hay 79 cruces con tres o más
-salidas y 42 conexiones alternativas para adelantar y cambiar de ruta. Árboles
-y rocas decoran únicamente casillas bloqueadas.
+Autors: Gerard Casacuberta, Juan Diego Suárez i Mikolaj Jaworski.
 
-Los seis jugadores salen del mismo lado, agrupados en un bloque de 2 × 3 casillas:
-`[3,5]`, `[4,5]`, `[3,4]`, `[4,4]`, `[3,3]`, `[4,3]`. Comparten un acceso al
-laberinto y los dos primeros pueden disputar la misma casilla desde su movimiento
-inicial. Las marcas azules identifican esas seis posiciones.
+## Jugar
 
-La copa está en `[55,55]`, al final de un ramal con una única entrada de dos
-casillas, en el extremo opuesto. El camino más corto desde la salida adelantada
-mide 102 pasos (antes 204). El suelo dorado y el emblema acompañan la posición de la copa.
-Las propiedades `spawnPositions`, `trophyPosition` y `boostPositions` del mapa
-configuran las posiciones que utiliza el servidor.
+El joc ja està publicat i no cal instal·lar res:
 
-Hay ocho mejoras `+1` compartidas a lo largo del recorrido, con las dos primeras
-a 6 y 12 pasos de la salida adelantada. Se recogen al pasar por ellas, desaparecen
-para todos y aumentan en uno el alcance del jugador durante esa partida, hasta
-un máximo de 7 casillas por clic. Al llegar a 7, pasar por encima de otra bolita
-no la recoge ni la elimina: queda disponible para otros jugadores. Se empieza
-con un alcance de tres casillas por clic y el HUD muestra el alcance actual y el
-máximo. El servidor controla movimiento,
-colisiones, disputas, recogidas y victoria.
+- **Joc:** https://iso-client.onrender.com/
+- **Servidor:** https://iso-server-t9m2.onrender.com/
 
-El primer jugador que llega a la copa gana, también si la atraviesa en un recorrido.
-«Jugar otra partida» conserva la sesión y abre un lobby nuevo; los demás pueden
-unirse con el mismo botón. Cada sala restaura copa, mejoras y alcance inicial.
-La imagen de la copa está en `client/public/assets/trophy.png` y su prompt en
-`docs/trophy-prompt.txt`. La cámara conserva una escala de 0.6.
+Està allotjat al pla gratuït de Render: si fa estona que ningú hi entra, la primera
+càrrega pot trigar uns segons mentre el servei es desperta.
 
-Pruebas: `cd server` y `node --test tests/*.test.js` (las pruebas de red requieren
-también las dependencias del cliente). Verifican conectividad, anchura de los
-pasillos, salidas agrupadas, meta al fondo, disputas, recogidas y revancha.
+Crea un compte des de la pantalla d'inici (o entra amb un dels usuaris de prova de
+`server/USERS.md`) i, des del menú, inicia una partida o uneix-te a la sala d'un
+company amb el seu codi.
 
-![Esquema del laberinto y salida compartida](docs/maze-preview.png)
+## Estructura
 
-Para editarlo en Tiled, abre `client/public/assets/map.tmx` y exporta a
-`client/public/assets/map.tmj`, conservando las capas, propiedades y la referencia
-`map_tiles.tsx`. Reinicia el servidor y recarga los clientes después de cambiarlo.
-
-Para reconstruir el diseño original de este laberinto: `python scripts/generate_maze.py`.
-Este comando sobrescribe ambos mapas; no lo ejecutes si quieres conservar ediciones manuales.
-Para regenerar el esquema del README: `python scripts/preview_maze.py` (requiere Pillow).
-
-## Màquina virtual
-
-- **Usuari:** *multi*
-- **Contrasenya:** *patata1234*
-
-## Engegar servidor i client
-
-### Servidor (port 2567)
-
-Cal Node.js 22 o superior. En Windows PowerShell, si `npm` queda bloquejat
-per la política de scripts, utilitza `npm.cmd` als comandos següents.
-
-1. `cd server`
-2. `npm install`
-3. `npm start` (o `npm run dev` per reiniciar automàticament en canviar fitxers)
-
-En local, l'arrencada crea `.env` a partir de `.env.example` si no existeix
-i prepara les taules de SQLite automàticament, sense esborrar dades existents.
-No cal entregar `.env`: està ignorat per Git. Si ja existeix, es conserva.
-En producció cal configurar les variables i un `JWT_SECRET` propi;
-la creació automàtica de `.env` només s'aplica a l'entorn local.
-
-#### Crear base de dades
-
-Opcionalment, es pot preparar per separat amb `npm run db`.
-
-### Client (port 5173)
-
-1. `cd client`
-2. `npm install`
-3. `npm run dev` (en una altra terminal, amb el servidor en marxa)
-
-Obre http://localhost:5173 i inicia sessió. Per crear un compte, usa el botó
-«Registrarse» (obre el formulari de la web del servidor a `/register`).
-
-## Recuperación de contraseña con Brevo
-
-El login del juego incluye «He olvidado mi contraseña», que abre la página
-`/forgot` de la web del servidor. La recuperación se completa en `/forgot` y
-`/reset`; ambas páginas usan `POST /api/forgot-password` y
-`POST /api/reset-password` del backend. El enlace del correo apunta a
-`SERVER_URL/reset`; en Render se usa automáticamente `RENDER_EXTERNAL_URL` si
-`SERVER_URL` no está definida.
-
-Configura estas variables **solo en el backend**, en `server/.env`:
-
-```dotenv
-BREVO_API_KEY=
-BREVO_SENDER_EMAIL=
-BREVO_SENDER_NAME="El torneo de los magos"
-SERVER_URL=http://localhost:2567
-TRUST_PROXY_HOPS=0
+```
+client/   joc (Vite + PixiJS): login, menú, perfil, sala i partida.
+server/   API i lògica del joc (Node.js + Express + SQLite).
+tiled/    còpia del mapa per editar-lo amb Tiled.
+scripts/  scripts de Python per generar el laberint i una vista prèvia.
+informe/  informe del projecte en LaTeX.
 ```
 
-- Genera una **API Key**, no una clave SMTP, en Brevo: Settings → SMTP & API →
-  API Keys & MCP. Documentación: https://help.brevo.com/hc/en-us/articles/209467485
-- Añade y verifica el remitente que usarás en `BREVO_SENDER_EMAIL`, completa la
-  autenticación de dominio que indique Brevo y comprueba que el envío transaccional
-  esté activado. Guía: https://developers.brevo.com/docs/getting-started-with-senders-and-domains
-- `SERVER_URL` es la URL pública de este servidor (no la del cliente). En
-  producción es obligatoria: evita que un `Host` falso redirija el enlace de
-  recuperación. Usa HTTPS en un despliegue público.
-- No subas `.env`, no uses variables `VITE_` para estas credenciales y no las
-  añadas al `/config.js` público. Reinicia el servidor después de configurarlas.
-- El `.env` existente se conserva: añade estas variables manualmente si lo creaste
-  antes de incorporar esta funcionalidad. No necesitas compartir la clave por chat.
+El servidor també té unes pàgines antigues fetes amb Eta (`server/templates`). Si es
+defineix `CLIENT_URL`, totes redirigeixen al client, que és l'única entrada.
 
-En Render, el blueprint configura un salto de proxy; introduce la clave y el
-remitente como variables del servicio **servidor**. Para un servicio ya creado,
-comprueba también esas variables en su panel. `TRUST_PROXY_HOPS=0` sirve para
-acceso directo local; usa `1` solo si el servidor está detrás de un único proxy de
-confianza, como el despliegue previsto en Render. Una topología distinta requiere
-revisar este valor para no aceptar IP falsificadas.
+## Com funciona
 
-En Docker local puedes cargar las credenciales con
-`docker compose --env-file server/.env up --build`.
+### Comptes
 
-### Comprobar el flujo
+Tot es fa des del client: registre, inici de sessió, verificació en dos passos (TOTP),
+recuperació de contrasenya per correu, perfil amb avatar i sobrenom, canvi de
+contrasenya i eliminació del compte. En iniciar sessió, el servidor retorna un JWT que
+el client desa a `sessionStorage` i envia com a `Authorization: Bearer`.
 
-1. Arranca servidor y cliente y registra una cuenta con un correo que controles.
-2. Pulsa «He olvidado mi contraseña» y envía ese correo.
-3. Revisa la bandeja de entrada, spam y los registros transaccionales de Brevo.
-4. Abre el enlace y elige una contraseña de al menos 12 caracteres. Inicia
-   sesión con ella y comprueba que la anterior ya no funciona.
-5. Reutiliza el enlace: debe fallar. Solicita dos enlaces separados por al menos
-   un minuto: solo debe funcionar el último. A los 30 minutos caducan.
-6. Un correo inexistente y un fallo del proveedor muestran la misma respuesta
-   genérica. Los logs solo incluyen códigos seguros como `BREVO_HTTP_401`,
-   `BREVO_HTTP_429`, `BREVO_NOT_CONFIGURED` o `RECOVERY_FAILED`.
+Les contrasenyes es desen amb Argon2id i han de tenir com a mínim 12 caràcters. Es
+comprova que no apareguin en filtracions conegudes (Pwned Passwords). Els usuaris
+banejats no poden entrar ni jugar.
 
-Brevo recibe una petición HTTPS a `https://api.brevo.com/v3/smtp/email` con la
-cabecera `api-key`. Una respuesta aceptada no garantiza entrega: compruébala en
-su panel. No se envían correos reales en las pruebas automatizadas.
+### Menú i sales
 
-Los tokens tienen 32 bytes aleatorios; solo su SHA-256 se guarda en SQLite.
-Registro, recuperación y cambio comparten `server/passwordPolicy.js`: mínimo 12 caracteres,
-sin exigir mayúsculas, números ni símbolos, permitiendo frases y espacios. Se rechazan
-contraseñas detectadas en Pwned Passwords enviando solo los cinco primeros caracteres
-de su SHA-1. Si el servicio no responde, se permite continuar y se registra únicamente
-`HIBP_UNAVAILABLE`, conservando el comportamiento original del registro.
-Solicitar otro reemplaza el anterior. La contraseña se guarda con Argon2id y el
-token se valida de nuevo y se consume dentro de la misma transacción del cambio.
-Abrir el enlace no consume el token. Este viaja en el fragmento de URL y el cliente
-lo retira de la barra al leerlo; recargar esa pantalla requiere abrir de nuevo el
-enlace del correo. No se guarda en el almacenamiento del navegador.
+Després del login apareix el menú principal: iniciar partida, crear sala, unir-se a
+una sala amb el seu codi i veure el perfil, on es mostren les copes guanyades. Cada
+sala té un codi de 6 lletres que es pot copiar i compartir. Ara mateix «Iniciar
+partida» i «Crear sala» obren totes dues una sala nova.
 
-Límites por proceso: 5 solicitudes por IP cada 15 minutos, 1 por correo cada minuto,
-3 por correo cada hora y 10 intentos de cambio por IP cada 15 minutos. Los límites
-por correo mantienen la respuesta genérica. Los contadores están en memoria y se
-reinician al reiniciar el servidor; no se comparten entre varias instancias. El envío
-en segundo plano evita esperar a Brevo para responder, pero no es una cola persistente:
-si se detiene el proceso puede perderse el envío y habrá que solicitar otro enlace.
-Los JWT de sesiones ya abiertas conservan su caducidad actual; esta función invalida
-enlaces de recuperación, sin añadir revocación de sesiones al sistema existente.
+A la sala cada jugador tria una de les sis cases. La partida comença quan tothom ha
+triat (mínim 2 jugadors en producció i 1 en local, per poder provar-ho sol).
 
-Pruebas con SQLite en memoria y Brevo simulado:
+### Partida
+
+La partida va per HTTP, sense WebSockets:
+
+| Petició | Per a què |
+|---|---|
+| `POST /api/game/join` | entrar en una sala (amb `roomId`) o obrir-ne una de nova |
+| `GET /api/game/:roomId?since=N` | estat de la sala i esdeveniments des de `N` |
+| `POST /api/game/:roomId/team` | triar equip |
+| `POST /api/game/:roomId/move` | moure's a una casella |
+| `POST /api/game/:roomId/leave` | sortir |
+
+El client consulta l'estat cada 100 ms i, amb aquestes respostes, calcula el ping i la
+diferència de rellotge amb el servidor. En tancar la pestanya avisa amb
+`navigator.sendBeacon`; si no pot, el servidor el treu després de 15 s sense consultes.
+
+El servidor és qui mana: valida cada moviment (abast, murs, caselles ocupades), calcula
+el camí i el reparteix amb l'hora d'inici perquè tothom vegi la mateixa animació. Si
+dos jugadors van a la mateixa casella alhora, guanya qui ha fet clic abans segons el
+rellotge sincronitzat; l'altre es queda una casella abans i retrocedeix una mica.
+
+Es comença movent 3 caselles per clic. Hi ha 8 boles pel camí que sumen +1 cadascuna,
+fins a un màxim de 7. Qui arriba a la copa guanya i se li suma una copa al perfil.
+
+### So
+
+Hi ha una música per als menús i una altra per a la partida, un efecte als duels, un
+altre en guanyar i un altre en canviar de pantalla. El botó ♪ i el panell d'ajustos
+(tecla Esc dins la sala) permeten abaixar el volum o treure la música. El panell no
+atura la partida.
+
+## Executar-lo en local (opcional)
+
+Només cal si es vol provar o modificar el codi. Cal Node.js 22 o superior. Primer el
+servidor i després el client, cadascun en un terminal:
 
 ```bash
 cd server
-node --test tests/password-recovery.test.js
+npm install
+npm run dev        # o npm start, sense recàrrega automàtica
 ```
 
-## Crear mapes isometrics
-
-Fet amb el programa [Tiled](https://thorbjorn.itch.io/tiled). El projecte del mapa esta a `client/public/assets/map.tmx`.
-
-La capa principal es diu `ground` i despres hi ha la capa `collision` que determina les caselles que tindran col·lisions i que per tant el jugador no podra passar.
-
-> La capa de col·lisions s'ha d'anomenar `collision`, si no tambe s'hauria de canviar en el codi.
-
-## Actualitzar el mapa del joc
-
-Hi ha 2 passos importants a fer:
-
-1. Exportar el mapa **(File > Export > JSON map files (\*.tmj, \*.json))** a `client/public/assets/map.tmj`.
-2. Obrir el fitxer exportat (`client/public/assets/map.tmj`) i canviar el parametre `source` del que hi hagi a **"map_tiles.tsx"**.
-
-L'aparta de **tilesets** hauria de quedar aixi:
-
-```json
-...
-"tilesets":[
-    {
-        "firstgid":1,
-        "source":"map_tiles.tsx"
-    }
-],
-...
+```bash
+cd client
+npm install
+npm run dev
 ```
 
-## Docker (local)
+El joc queda a http://localhost:5173 i el servidor a http://localhost:2567.
 
-Cal tenir Docker amb Compose.
+La primera vegada, el servidor crea `server/.env` a partir de `.env.example` i prepara
+la base de dades SQLite (`server/db/data.db`). Si és buida, hi carrega els usuaris de
+prova de `server/db/seed.sql`. També es pot crear a mà amb `npm run db`.
+
+A Windows, si PowerShell bloqueja `npm`, fes servir `npm.cmd`.
+
+Per jugar des d'un altre ordinador de la mateixa xarxa, entra amb la IP del teu equip
+(per exemple `http://192.168.1.20:5173`) i afegeix aquesta adreça a `CLIENT_ORIGIN` a
+`server/.env`; si no, el servidor rebutja el login per CORS.
+
+### Proves
+
+```bash
+cd server && node --test tests/*.test.js
+cd client && node --test tests/*.test.js
+cd client && npm run build
+```
+
+### Docker
 
 ```bash
 docker compose up --build
 ```
 
-- Client: http://localhost:8080
-- Servidor: http://localhost:2567
-- SQLite: `server/db/data.db`, dins la imatge (viatja amb el codi)
-- Avatars: volum `iso-data`, muntat a `/data` del servidor
+Client a http://localhost:8080 i servidor a http://localhost:2567. La base de dades i
+els avatars es desen al volum `iso-data`. Per enviar correus, passa les variables de
+Brevo amb `docker compose --env-file server/.env up --build`.
 
-## Desplegar a Render
+## Mapa
 
-`render.yaml` defineix dos serveis web (client i servidor) i un disc persistent d'1 GB pel servidor. Tots dos estan a `region: frankfurt`; canvia-ho abans del primer desplegament si vols una altra regió.
+El mapa s'edita amb [Tiled](https://www.mapeditor.org/) a `client/public/assets/map.tmx`
+(`tiled/map.tmx` n'és una còpia; cal mantenir-les iguals). Després cal:
 
-1. Puja els canvis al repositori.
-2. A Render, crea un **Blueprint** i selecciona la branca `mejoras-backend`.
-3. Comprova que `https://<servidor>.onrender.com/healthz` respon correctament.
-4. Quan fusionis a `main`, canvia el camp `branch` de `render.yaml` (o la configuració dels serveis a Render).
+1. Exportar-lo com a JSON (*File > Export*) a `client/public/assets/map.tmj`.
+2. Comprovar que al `.tmj` el tileset queda així:
 
-Variables principals del servidor: `JWT_SECRET` (la genera Render), `COOKIE_SECURE=production`, `DB_PATH=/app/server/db/data.db`, `UPLOAD_DIR=/data/uploads`. El blueprint connecta `CLIENT_ORIGIN` i `SERVER_URL` entre els dos serveis.
+   ```json
+   "tilesets": [{ "firstgid": 1, "source": "map_tiles.tsx" }]
+   ```
+3. Reiniciar el servidor, que llegeix el mapa en arrencar.
 
-> La base de dades es puja al repositori i s'inclou a la imatge, així que cada desplegament arrenca amb els usuaris de desenvolupament. Els comptes creats a producció es perden al desplegament següent. El hook `.githooks/pre-commit` afegeix `server/db/data.db` a cada commit; activa'l amb `git config core.hooksPath .githooks`.
+La capa `collision` marca les caselles per on no es pot passar; si se'n canvia el nom,
+també s'ha de canviar a `server/game/map.js`. Les propietats del mapa `spawnPositions`,
+`trophyPosition` i `boostPositions` indiquen on surten els jugadors, on és la copa i on
+són les boles.
 
-> El pla `free` del client s'atura per inactivitat. El servidor necessita el pla `starter` per poder tenir disc persistent.
+`python scripts/generate_maze.py` torna a generar el laberint original (sobreescriu els
+dos `.tmx` i el `.tmj`). `python scripts/preview_maze.py` dibuixa una vista des de dalt
+a `docs/maze-preview.png` i necessita Pillow.
 
-## Problemes alhora d'executar
+## Recuperar la contrasenya (Brevo)
 
-Si hi ha qualsevol problema el millor es eliminar la carpeta `node_modules` i el fitxer `package-lock.json`.
+Els correus s'envien amb l'API de [Brevo](https://www.brevo.com/). Perquè arribin, cal
+omplir a `server/.env` (o a les variables del servidor publicat):
+
+```dotenv
+BREVO_API_KEY=           # API key de Brevo (no la clau SMTP)
+BREVO_SENDER_EMAIL=      # remitent verificat a Brevo
+SERVER_URL=http://localhost:2567
+```
+
+Sense la clau, el servidor no envia res i ho indica a la seva consola amb
+`BREVO_NOT_CONFIGURED`. La resposta a l'usuari és sempre la mateixa, existeixi o no el
+correu, per no revelar quins comptes hi ha. L'enllaç caduca en 30 minuts i només
+serveix una vegada.
+
+## Desplegament a Render
+
+`render.yaml` crea dos serveis: el servidor (pla `starter`, amb un disc d'1 GB a
+`/data` per a la base de dades i els avatars) i el client (pla `free`, que s'adorm si
+no s'utilitza). Es desplega des de la branca `main`.
+
+Després de crear el *Blueprint*, cal posar a mà `BREVO_API_KEY` i `BREVO_SENDER_EMAIL`
+al servei del servidor. `/healthz` serveix per comprovar que el servidor respon.
+
+## Crèdits
+
+Música i efectes de [Pixabay](https://pixabay.com/), sota la Pixabay Content License:
+
+- Menús: *Magic Fantasy Fairy Tale Music*, de solarflex
+- Partida: *Motions to Dark Mystery*, de leberch
+- Duel: *Magical Spell Cast*, de daviddumaisaudio
+- Victòria: *Winning*, de pw23check
+- Canvi de pantalla: *Wind Magic 2*, de yodguard
+
+## Si alguna cosa falla
+
+- El login diu que no pot connectar: comprova que el servidor està en marxa i que
+  l'adreça del client és a `CLIENT_ORIGIN`.
+- Errors estranys en instal·lar: esborra `node_modules` i `package-lock.json` i torna a
+  fer `npm install`.

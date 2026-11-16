@@ -13,7 +13,7 @@ export function createAccountRouter({ uploadsDir }) {
   const storage = multer.diskStorage({
     destination: (req, file, callback) => callback(null, uploadsDir),
     filename: (req, file, callback) => {
-      // Random name: avoids collisions and ignores the user-supplied filename.
+      // nombre aleatorio, no usamos el del archivo subido
       const extension = path.extname(file.originalname).toLowerCase();
       callback(null, randomUUID() + extension);
     },
@@ -23,12 +23,41 @@ export function createAccountRouter({ uploadsDir }) {
     limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
     fileFilter: (req, file, callback) => {
       const allowed = ["image/jpeg", "image/png", "image/webp"];
-      callback(null, allowed.includes(file.mimetype));
+      if (allowed.includes(file.mimetype)) return callback(null, true);
+      const error = new Error("Unsupported avatar type");
+      error.code = "AVATAR_TYPE";
+      callback(error);
     },
   });
 
-  router.put("/profile", auth, upload.single("avatar"), async (req, res) => {
+  router.get("/me", auth, (req, res) => {
+    const user = getUser(req.user.username);
+    if (!user) return res.status(401).json({ error: "La sesión no es válida. Vuelve a iniciar sesión." });
+    res.json({
+      username: user.username,
+      email: user.email,
+      birthdate: user.birthdate,
+      nickname: user.nickname || "",
+      avatar: user.avatar,
+      totpEnabled: Boolean(user.totp_enabled),
+      trophies: user.trophies ?? 0,
+    });
+  });
+
+  const uploadAvatar = upload.single("avatar");
+  // errores de multer en JSON para mostrarlos en el cliente
+  const avatarUpload = (req, res, next) => uploadAvatar(req, res, (error) => {
+    if (!error) return next();
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "L'avatar ha de pesar menys de 2 MB."
+      : error.code === "AVATAR_TYPE" ? "L'avatar ha de ser una imatge JPEG, PNG o WebP." : null;
+    if (!message) return next(error);
+    res.status(400).json({ error: message });
+  });
+
+  router.put("/profile", auth, avatarUpload, async (req, res) => {
     const nickname = (req.body.nickname || "").trim();
+    if (!nickname) return res.status(400).json({ error: "El nickname no pot estar buit." });
     const user = getUser(req.user.username);
     if (!user) return res.status(404).json({ error: "User not found" });
 

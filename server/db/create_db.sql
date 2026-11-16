@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     isBanned BOOLEAN DEFAULT 0,
     reason TEXT,
     totp_secret TEXT,
-    totp_enabled BOOLEAN DEFAULT 0
+    totp_enabled BOOLEAN DEFAULT 0,
+    trophies INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS username_UNIQUE ON users (username ASC);

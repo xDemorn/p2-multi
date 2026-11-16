@@ -24,7 +24,7 @@ export function createPasswordResetStore(db) {
     find: (tokenHash, now) => find.get(tokenHash, now),
     remove: (tokenHash) => remove.run(tokenHash),
     prune: (now) => prune.run(now),
-    // Revalidate and consume under one write lock, including concurrent requests.
+    // en una transacción para que dos peticiones no usen el mismo token
     consume: (tokenHash, passwordHash, now) => consume.immediate(tokenHash, passwordHash, now),
   };
 }

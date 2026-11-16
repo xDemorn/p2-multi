@@ -50,5 +50,7 @@ export function renderLobby(state, sessionId) {
   }
 
   const waiting = [...state.players.values()].filter((player) => !player.team).length;
-  $("lobbyInfo").textContent = `${state.players.size} player(s) in lobby, ${waiting} still choosing. Needs 2+ players.`;
+  const total = state.players.size;
+  $("lobbyInfo").textContent = `${total} ${total === 1 ? "mago" : "magos"} en la sala, ${waiting} sin equipo. `
+    + "La partida empieza cuando todos han elegido equipo.";
 }

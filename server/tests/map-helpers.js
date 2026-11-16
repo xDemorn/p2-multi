@@ -7,7 +7,7 @@ export const trophy = property("trophyPosition");
 export const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 export const isOpen = (x, y) => x >= 0 && y >= 0 && x < map.width && y < map.height && !collision[y * map.width + x];
 
-// Find a real two-wide straight stretch rather than depending on an old plaza.
+// busca un tramo recto de dos casillas de ancho
 export const straight = (() => {
   for (let y = 0; y < map.height - 1; y++) {
     for (let x = 0; x < map.width - 5; x++) {

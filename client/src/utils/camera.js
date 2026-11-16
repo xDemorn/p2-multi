@@ -1,5 +1,4 @@
-// Game viewport in the reference screenshot. Cover this frame so changes to
-// browser zoom or window proportions never expose additional map area.
+// encuadre de referencia: lo cubrimos para no enseñar más mapa al hacer zoom
 const REFERENCE_WIDTH = 1920;
 const REFERENCE_HEIGHT = 910;
 

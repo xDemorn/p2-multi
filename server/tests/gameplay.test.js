@@ -1,22 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import jwt from "jsonwebtoken";
-import { GameRoom } from "../GameRoom.js";
-import { createToken, jwtSecret } from "../utils.js";
+import { GameRoom, CLICK_ARBITRATION_MS } from "../GameRoom.js";
 import { straight, trophy, trophyNeighbors, trophyCrossing, property, directions, isOpen } from "./map-helpers.js";
 
 const { x: X, y: Y } = straight;
 
-test("banned login tokens cannot join a game room", () => {
-  const token = createToken({ id: 1, username: "banned", isBanned: true });
-  assert.equal(jwt.verify(token, jwtSecret).isBanned, true);
-  const room = { state: { phase: "lobby" }, clients: [] };
-  assert.throws(() => GameRoom.prototype.onAuth.call(room, {}, { token }, { headers: {} }), /Banned account/);
-});
-
 function harness() {
   let now = 0, sequence = 0;
-  const timers = new Map(), handlers = new Map();
+  const timers = new Map();
   const clock = {
     setTimeout(callback, delay) {
       const id = ++sequence;
@@ -35,19 +26,13 @@ function harness() {
       now = until;
     },
   };
-  const room = { clock, clients: [], setState(state) { this.state = state; },
-    onMessage(type, handler) { handlers.set(type, handler); }, broadcast() {}, lock() {} };
-  for (const name of Object.getOwnPropertyNames(GameRoom.prototype)) {
-    if (name !== "constructor") room[name] = GameRoom.prototype[name];
-  }
-  room.onCreate();
+  const room = new GameRoom("test", { clock });
   room.state.phase = "playing";
   function addPlayer(id, x, y) {
-    const client = { sessionId: id, send() {} };
-    room.onJoin(client, {}, { username: id });
+    room.join({ id, username: id });
     const player = room.state.players.get(id);
     player.x = x; player.y = y;
-    return { client, player };
+    return { client: id, player };
   }
   function boostAt(x, y) {
     const boost = room.state.boosts.values().next().value;
@@ -55,7 +40,11 @@ function harness() {
     room.state.boosts.clear(); boost.x = x; boost.y = y;
     room.state.boosts.set("test", boost);
   }
-  return { room, clock, addPlayer, boostAt, move: handlers.get("moveTo"), latency: handlers.get("latency") };
+  return {
+    room, clock, addPlayer, boostAt,
+    move: (client, message) => room.moveTo(client, message),
+    latency: (client, rtt) => room.setLatency(client, rtt),
+  };
 }
 
 test("starting a six-player room puts all teams at the grouped map spawns", () => {
@@ -106,11 +95,10 @@ test("player ping is synchronized independently and rejects invalid measurements
   assert.equal(b.player.ping, 175);
   for (const value of [-1, 5001, NaN, Infinity, "20"]) h.latency(a.client, value);
   assert.equal(a.player.ping, 42);
-  h.latency({ sessionId: "unknown" }, 20);
-  assert.equal(h.room.clientRtts.has("unknown"), false);
-  h.room.onLeave(a.client);
+  h.latency("unknown", 20);
+  assert.equal(h.room.state.players.has("unknown"), false);
+  h.room.leave(a.client);
   assert.equal(h.room.state.players.has("one"), false);
-  assert.equal(h.room.clientRtts.has("one"), false);
 });
 
 test("boosts stop at seven and a capped player leaves pickups for another player", () => {
@@ -161,7 +149,7 @@ test("the server accepts seven steps at maximum range and rejects eight", () => 
   assert.equal(h.room.destinationClaims.size, 0);
   h.move(client, targets.get(7));
   assert.equal(h.room.destinationClaims.size, 1);
-  h.clock.advance(250 + 2100);
+  h.clock.advance(CLICK_ARBITRATION_MS + 2100);
   assert.deepEqual([player.x, player.y], [targets.get(7).x, targets.get(7).y]);
   assert.equal(player.moveRange, 7);
 });
@@ -177,7 +165,7 @@ test("reaching seven during movement leaves later boosts along that same path un
     h.room.state.boosts.set(`boost${i}`, boost);
   });
   h.move(client, { x: X + 3, y: Y });
-  h.clock.advance(250 + 300);
+  h.clock.advance(CLICK_ARBITRATION_MS + 300);
   assert.equal(player.moveRange, 7);
   assert.equal(h.room.state.boosts.has("boost0"), false);
   h.clock.advance(600);
@@ -191,7 +179,7 @@ test("boosts are collected on arrival at an intermediate tile, once only", () =>
   const { client, player } = h.addPlayer("one", X, Y);
   h.boostAt(X + 1, Y);
   h.move(client, { x: X + 3, y: Y });
-  h.clock.advance(250 + 299);
+  h.clock.advance(CLICK_ARBITRATION_MS + 299);
   assert.equal(player.moveRange, 3);
   assert.equal(h.room.state.boosts.size, 1);
   h.clock.advance(1);
@@ -221,8 +209,8 @@ test("disconnect cancels future pickups", () => {
   const { client, player } = h.addPlayer("one", X, Y);
   h.boostAt(X + 3, Y);
   h.move(client, { x: X + 3, y: Y });
-  h.clock.advance(250);
-  h.room.onLeave(client);
+  h.clock.advance(CLICK_ARBITRATION_MS);
+  h.room.leave(client);
   h.clock.advance(1000);
   assert.equal(h.room.state.boosts.size, 1);
   assert.equal(player.moveRange, 3);
@@ -232,11 +220,11 @@ test("crossing the trophy ends the round and cancels the rest of the path", () =
   const h = harness();
   const { client, player } = h.addPlayer("champion", ...trophyCrossing.start);
   h.move(client, trophyCrossing.beyond);
-  h.clock.advance(250 + 599);
+  h.clock.advance(CLICK_ARBITRATION_MS + 599);
   assert.equal(h.room.state.phase, "playing");
   h.clock.advance(1);
   assert.equal(h.room.state.phase, "finished");
-  assert.equal(h.room.state.winnerId, client.sessionId);
+  assert.equal(h.room.state.winnerId, client);
   assert.equal(h.room.state.winnerName, "champion");
   assert.equal(h.room.state.trophyAvailable, false);
   assert.equal(h.room.destinationClaims.size, 0);
@@ -258,7 +246,7 @@ test("only the winner of a contested trophy tile wins, even after leaving", () =
   assert.equal(b.player.moving, false);
   h.room.finishGame("second", ...trophy);
   assert.equal(h.room.state.winnerId, "first");
-  h.room.onLeave(a.client);
+  h.room.leave(a.client);
   assert.equal(h.room.state.winnerName, "first");
   assert.equal(h.room.state.phase, "finished");
 });

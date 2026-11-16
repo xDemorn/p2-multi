@@ -1,6 +1,6 @@
 import axios from "axios";
 
-// Backend only: never expose these settings through Vite or /config.js.
+// las claves de Brevo solo están en el servidor
 export async function sendRecoveryEmail({ recipientEmail, resetUrl }) {
   const { BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME } = process.env;
   if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL || !BREVO_SENDER_NAME) {
@@ -27,6 +27,6 @@ export async function sendRecoveryEmail({ recipientEmail, resetUrl }) {
     throw new Error(known.includes(error?.code) ? `BREVO_NETWORK_${error.code}` : "BREVO_NETWORK_ERROR");
   }
 
-  // Do not include provider response bodies, recipients or request data in errors.
+  // en los errores solo va el código, nunca datos del correo
   if (response.status < 200 || response.status >= 300) throw new Error(`BREVO_HTTP_${response.status}`);
 }

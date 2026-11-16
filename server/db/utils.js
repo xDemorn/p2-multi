@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPasswordResetStore } from "./passwordResets.js";
-// Initialize the schema also when running `node index.js` directly.
+// así el esquema también se crea con node index.js
 import "./create_db.js";
 
 const dbPath = process.env.DB_PATH
@@ -30,6 +30,10 @@ export function updateUserProfile(username, nickname, avatar) {
     `).run(nickname, avatar, username);
 }
 
+export function addTrophy(id) {
+    return db.prepare("UPDATE users SET trophies = trophies + 1 WHERE id = ?").run(id).changes;
+}
+
 export function updateUserPassword(username, hash) {
     return db.prepare("UPDATE users SET hash = ? WHERE username = ?").run(hash, username).changes;
 }
@@ -41,7 +45,7 @@ export function deleteUser(id) {
     }).immediate(id);
 }
 
-// Stores a pending secret; totp_enabled stays 0 until the first code is confirmed.
+// totp_enabled sigue a 0 hasta confirmar el primer código
 export function setUserTotpSecret(username, secret) {
     db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE username = ?").run(secret, username);
 }

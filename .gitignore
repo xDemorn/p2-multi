@@ -1,3 +1,6 @@
 EXPLICACION_CAMBIOS.md
 
+# Local SQLite data; deploys seed from server/db/seed.sql instead.
+server/db/data.db
+
 code-php

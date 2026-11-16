@@ -13,6 +13,7 @@ services:
       BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
       BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-El torneo de los magos}
       SERVER_URL: ${SERVER_URL:-http://localhost:2567}
+      CLIENT_URL: http://localhost:8080
     ports:
       - "2567:2567"
     volumes:

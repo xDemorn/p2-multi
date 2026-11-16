@@ -4,26 +4,26 @@ import { mkdir } from "node:fs/promises";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { Server } from "colyseus";
-import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Eta } from "eta";
+import { addTrophy, getUser, passwordResetStore } from "./db/utils.js";
 import { GameRoom } from "./GameRoom.js";
-import { getUser, passwordResetStore } from "./db/utils.js";
 import { createPasswordRecoveryRouter } from "./passwordRecovery.js";
 import { createTwoFactorRouter } from "./twoFactor.js";
 import { attachUser } from "./utils.js";
 import { createAccountRouter } from "./routes/account.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createGameRouter } from "./routes/game.js";
 import { createPagesRouter } from "./routes/pages.js";
 
 const PORT = process.env.PORT || 2567;
+GameRoom.onWin = addTrophy;
 const uploadsDir = process.env.UPLOAD_DIR
   ? path.resolve(process.env.UPLOAD_DIR)
   : path.join(import.meta.dirname, "public", "uploads");
 await mkdir(uploadsDir, { recursive: true });
 
 const app = express();
-// Set only for a known reverse-proxy topology, never trust forwarded headers blindly.
+// número de proxies por delante (1 en Render)
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
 if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 5) {
   throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 5");
@@ -60,6 +60,7 @@ app.use("/api", createPasswordRecoveryRouter({ store: passwordResetStore }));
 app.use("/api", createTwoFactorRouter());
 app.use("/api", createAuthRouter({ allowedOrigins }));
 app.use("/api", createAccountRouter({ uploadsDir }));
+app.use("/api/game", createGameRouter());
 
 app.use((req, res) => {
   if (req.path.startsWith("/api/")) return res.status(404).json({ error: "API route not found" });
@@ -67,6 +68,4 @@ app.use((req, res) => {
 });
 
 const server = http.createServer(app);
-const gameServer = new Server({ transport: new WebSocketTransport({ server }) });
-gameServer.define("game", GameRoom);
-gameServer.listen(PORT).then(() => console.log(`Server on :${PORT}`));
+server.listen(PORT, () => console.log(`Server on :${PORT}`));

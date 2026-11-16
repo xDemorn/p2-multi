@@ -66,4 +66,5 @@ while queue:
             queue.append((p, steps + 1))
 draw.text((900, 790), f"{steps} pasos hasta la copa", fill="#f3e3bc", font=font(18))
 draw.text((900, 824), "Esquema de colisiones.\nEl juego conserva su arte\ny perspectiva isometrica.", fill="#afbed1", font=font(16), spacing=8)
+(ROOT / "docs").mkdir(exist_ok=True)
 image.save(ROOT / "docs/maze-preview.png")

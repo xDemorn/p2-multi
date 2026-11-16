@@ -14,10 +14,15 @@ services:
       - key: COOKIE_SECURE
         value: production
       - key: DB_PATH
-        value: /app/server/db/data.db
+        value: /data/data.db
       - key: UPLOAD_DIR
         value: /data/uploads
       - key: CLIENT_ORIGIN
+        fromService:
+          type: web
+          name: iso-client
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: CLIENT_URL
         fromService:
           type: web
           name: iso-client

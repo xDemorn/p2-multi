@@ -1,4 +1,4 @@
-// Breadth-first search on a 4-direction grid. Includes the start tile.
+// BFS en 4 direcciones, incluye la casilla inicial
 export function findPath(sx, sy, tx, ty, gridSize, blockedTiles) {
   const key = (x, y) => y * gridSize + x;
   const start = key(sx, sy);

@@ -11,8 +11,14 @@
 \usepackage{tabularx}
 \usepackage{longtable}
 \usepackage{enumitem}
+\usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{listings}
+\usepackage{csquotes}
+\DeclareQuoteStyle{catalan}
+  {\guillemotleft}{\guillemotright}
+  {\textquotedblleft}{\textquotedblright}
+\usepackage{microtype}
 \usepackage[unicode]{hyperref}
 
 \hypersetup{
@@ -28,7 +34,8 @@
   breaklines=true,
   frame=single,
   columns=fullflexible,
-  keepspaces=true
+  keepspaces=true,
+  showstringspaces=false
 }
 
 \setlist{itemsep=2pt,topsep=4pt}
@@ -47,12 +54,16 @@
 \noindent
 Aquest informe documenta les dues parts del projecte i com es relacionen entre elles.
 El \textbf{Mòdul de Gestió d'Usuaris} és una aplicació Node.js amb plantilles Eta que
-permet registrar-se, iniciar i tancar sessió, editar el perfil, canviar la contrasenya,
-recuperar-la per correu i eliminar el compte. El \textbf{Mòdul d'Interacció} és el joc
-multijugador: un taulell isomètric en PixiJS\ amb personatges de sis cases que competeixen
-per aconseguir la copa del laberint, sincronitzat en temps real amb Colyseus.
-Els dos mòduls comparteixen el mateix procés de servidor i el mateix testimoni JWT, de
-manera que la identitat creada al mòdul d'usuaris és la que autoritza l'entrada a la partida.
+permet registrar-se, iniciar i tancar sessió, activar la verificació en dos passos
+(TOTP), editar el perfil, canviar la contrasenya, recuperar-la per correu i eliminar
+el compte. El \textbf{Mòdul d'Interacció} és el joc multijugador: un taulell isomètric
+de $60 \times 60$ caselles en PixiJS, amb sis cases que competeixen per la copa del
+laberint. El joc no fa servir WebSockets: el client envia accions per HTTP i consulta
+l'estat de la sala cada 100~ms, amb un cursor d'esdeveniments, un rellotge sincronitzat
+pel ping i arbitratge de clics al servidor. Els dos mòduls comparteixen el mateix procés
+de servidor, la mateixa base de dades SQLite i el mateix testimoni JWT, de manera que la
+identitat creada al mòdul d'usuaris és la que autoritza l'entrada a la partida i la que
+acumula els trofeus guanyats.
 \end{abstract}
 
 \tableofcontents
@@ -60,6 +71,7 @@ manera que la identitat creada al mòdul d'usuaris és la que autoritza l'entrad
 
 % ---------------------------------------------------------------------------
 \section{Objectiu i abast}
+\label{sec:objectiu}
 
 El projecte consisteix en un joc multijugador en xarxa i en el sistema d'usuaris que el
 sustenta. L'objectiu del joc és recórrer un laberint isomètric de $60 \times 60$ caselles,
@@ -72,174 +84,261 @@ dissenyats per funcionar junts:
 \begin{description}[leftmargin=1.2cm,style=nextline]
   \item[Mòdul de Gestió d'Usuaris] Node.js, Express, plantilles Eta i SQLite.
         És la porta d'entrada: cap jugador no pot connectar-se a una partida sense un
-        compte vàlid i sense sessió activa.
-  \item[Mòdul d'Interacció] Client PixiJS\ i servidor de sales Colyseus.
+        compte vàlid i sense sessió activa. També inclou la recuperació de contrasenya,
+        la moderació i la verificació en dos passos.
+  \item[Mòdul d'Interacció] Client PixiJS\ i lògica de sales al servidor.
         És la partida en si: lobby, selecció d'equip, moviment, disputes per casella,
-        millores, condició de victòria i reconnexió a una altra partida.
+        millores, condició de victòria, trofeus i revanxa.
 \end{description}
 
 A més de descriure cada mòdul, l'informe dedica una atenció especial a la part
-multijugador de cadascun: la identitat compartida i la moderació al primer, i la
-sincronització d'estat, la latència i l'arbitratge de clics al segon.
+multijugador de cadascun: la identitat compartida, la protecció del compte i la
+moderació al primer, i el protocol HTTP, la sincronització d'estat, la latència i
+l'arbitratge de clics al segon. La secció~\ref{sec:connexio} explica com encaixen.
 
 % ---------------------------------------------------------------------------
 \section{Arquitectura general}
+\label{sec:arquitectura}
 
 El repositori conté dos projectes npm independents, sense \texttt{package.json} arrel:
 
 \begin{verbatim}
   navegador
      |
-     |  HTTPS (REST + pàgines Eta)        WSS (Colyseus)
-     v                                        v
+     |  HTTPS (REST + pagines Eta)          fitxers estatics
+     v                                             v
   +-----------------------------------------------------+
-  |  servidor Node.js  (Express + Colyseus, port 2567)  |
-  |  index.js  ->  rutes, plantilles, API REST          |
+  |  servidor Node.js  (Express, port 2567)             |
+  |  index.js    -> rutes, plantilles, API REST         |
   |  GameRoom.js -> sales, estat, moviment, partida     |
-  |  db/  -> SQLite (better-sqlite3)                    |
+  |  game/       -> mapa, BFS i registre de sales       |
+  |  db/         -> SQLite (better-sqlite3)             |
   +-----------------------------------------------------+
      ^
-     |  fitxers estàtics + build Vite
+     |  build de Vite (nginx al 8080/10000)
   +-----------------------------------------------------+
-  |  client Vite/PixiJS  (dev 5173, nginx 8080)         |
+  |  client Vite/PixiJS  (dev 5173)                     |
   +-----------------------------------------------------+
 \end{verbatim}
 
-El servidor allotja en un sol procés HTTP i WebSocket: Express atén les pàgines i l'API
-REST, i el transport WebSocket de Colyseus atén les sales de joc. El client obté l'adreça
-del servidor de \texttt{/config.js} (variable \texttt{window.\_\_SERVER\_URL\_\_}, generada
-pel contenidor); en desenvolupament fa servir \texttt{http://<host>:2567}.
+El servidor allotja en un sol procés HTTP tant les pàgines i l'API REST del mòdul
+d'usuaris com l'API de joc. No hi ha WebSockets ni un servei de sales separat: l'estat
+de cada partida viu en memòria a \texttt{GameRoom} i el client el consulta periòdicament.
+El client obté l'adreça del servidor de \texttt{/config.js} (variable
+\texttt{window.\_\_SERVER\_URL\_\_}, generada pel contenidor); en desenvolupament fa
+servir \texttt{http://<host>:2567}, i la URL base es construeix una sola vegada a
+\texttt{client/src/utils/constants.js}.
 
 Les decisions estructurals més rellevants són:
 
 \begin{itemize}
   \item \textbf{Moviment autoritatiu al servidor.} El client només envia el destí; el
-        servidor valida, calcula el camí i retransmet la ruta. El client no pot teleportar-se.
+        servidor valida, calcula el camí i retransmet la ruta. El client no pot
+        teleportar-se ni decidir qui guanya una casella disputada.
+  \item \textbf{HTTP en lloc de WebSocket.} Cada acció és una petició \texttt{POST} i
+        l'estat es llegeix amb \texttt{GET}. Això simplifica el desplegament (un sol
+        port, sense upgrades ni proxies especials) a canvi d'un sondeig cada 100~ms i
+        d'una latència mínima afegida.
   \item \textbf{Un únic origen de veritat per a l'usuari.} La taula \texttt{users} de
-        SQLite alimenta l'autenticació web i l'entrada a les sales; no hi ha dues bases de dades.
+        SQLite alimenta l'autenticació web, l'entrada a les sales i el comptador de
+        trofeus; no hi ha dues bases de dades ni un \enquote{usuari del joc} separat.
   \item \textbf{Testimoni JWT com a contracte entre mòduls.} El mateix secret signa i
-        verifica el token a l'API HTTP i a \texttt{GameRoom.onAuth}.
-  \item \textbf{Sense ORM ni framework d'UI.} SQL parametritzat amb \texttt{better-sqlite3}
-        i plantilles Eta, per mantenir el codi petit i auditable.
+        verifica el token a l'API HTTP i a les rutes de joc.
+  \item \textbf{Sense ORM ni framework d'UI.} SQL parametritzat amb
+        \texttt{better-sqlite3}, plantilles Eta i DOM/PixiJS directes, per mantenir el
+        codi petit i auditable.
+  \item \textbf{Configuració per entorn.} Les rutes, els límits i el destí de les dades
+        es controlen amb variables d'entorn; en local es crea un \texttt{.env} a partir
+        de \texttt{.env.example} si no existeix.
 \end{itemize}
 
 % ---------------------------------------------------------------------------
 \section{Mòdul de Gestió d'Usuaris}
+\label{sec:usuaris}
 
 \subsection{Tecnologies i estructura}
 
-Node.js $\geq 20.11$, Express 4, Eta 4 com a motor de plantilles, \texttt{better-sqlite3}
-com a accés directe a SQLite, \texttt{argon2} per als hash de contrasenya,
-\texttt{jsonwebtoken} per a la sessió, \texttt{multer} per a l'avatar i l'API REST de Brevo
-per al correu de recuperació.
+Node.js $\geq 20.11$, Express 4, Eta 4 com a motor de plantilles,
+\texttt{better-sqlite3} com a accés directe a SQLite, \texttt{argon2} per als hash de
+contrasenya, \texttt{jsonwebtoken} per a la sessió, \texttt{multer} per a l'avatar,
+\texttt{otplib} i \texttt{qrcode} per al TOTP i l'API REST de Brevo per al correu de
+recuperació.
 
 \begin{itemize}[nosep]
-  \item \texttt{server/index.js}: rutes de pàgines i de l'API, middleware global.
-  \item \texttt{server/GameRoom.js}: sala de joc (pertany al mòdul d'interacció, però
-        comparteix procés i autenticació).
-  \item \texttt{server/utils.js}: JWT, \texttt{attachUser}, \texttt{auth}, validacions comunes.
-  \item \texttt{server/db/}: connexió, esquema i consultes parametritzades.
+  \item \texttt{server/index.js}: muntatge d'Express, CORS, middleware global, rutes i
+        404.
+  \item \texttt{server/routes/pages.js}: pàgines Eta i redirecció al client Vite quan
+        \texttt{CLIENT\_URL} està definida.
+  \item \texttt{server/routes/auth.js}, \texttt{account.js} i
+        \texttt{twoFactor.js}: registre, login, perfil, contrasenya, eliminació i 2FA.
   \item \texttt{server/passwordPolicy.js} i \texttt{passwordRecovery.js}: política de
-        contrasenyes i flux de recuperació.
-  \item \texttt{server/templates/*.eta}: \texttt{home}, \texttt{login}, \texttt{register},
-        \texttt{profile}, \texttt{delete}, \texttt{banned}, \texttt{404}.
+        contrasenyes, límits i flux de recuperació.
+  \item \texttt{server/db/}: connexió, esquema idempotent, consultes parametritzades i
+        magatzem de tokens de recuperació.
+  \item \texttt{server/templates/*.eta}: \texttt{home}, \texttt{login},
+        \texttt{register}, \texttt{forgot}, \texttt{reset}, \texttt{profile},
+        \texttt{delete}, \texttt{banned} i \texttt{404}. El client Vite és l'entrada
+        principal; les plantilles es conserven com a lloc web del servidor i com a
+        alternativa quan no hi ha \texttt{CLIENT\_URL}.
+  \item \texttt{server/public/}: fulls d'estil, imatges i JavaScript de les pàgines Eta.
 \end{itemize}
 
 \subsection{Model de dades}
 
 \begin{lstlisting}[language=SQL]
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
-    username VARCHAR(63) UNIQUE,
-    hash VARCHAR(255),           -- Argon2id, mai la contrasenya
-    email VARCHAR(255) UNIQUE,
+    username VARCHAR(63),
+    hash VARCHAR(255),              -- Argon2id, mai la contrasenya
+    email VARCHAR(255),
     birthdate TEXT,
     nickname VARCHAR(150) DEFAULT '',
     avatar VARCHAR(255) DEFAULT '/icons/default.svg',
     isBanned BOOLEAN DEFAULT 0,
-    reason TEXT
+    reason TEXT,
+    totp_secret TEXT,               -- secret TOTP pendent o actiu
+    totp_enabled BOOLEAN DEFAULT 0,
+    trophies INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE password_resets (
+CREATE UNIQUE INDEX IF NOT EXISTS username_UNIQUE ON users (username ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS email_UNIQUE ON users (email ASC);
+
+CREATE TABLE IF NOT EXISTS password_resets (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL UNIQUE,
     expires_at INTEGER NOT NULL
 );
 \end{lstlisting}
 
-L'esquema es crea de forma idempotent a l'arrencada (\texttt{db/create\_db.sql}), de manera
-que \texttt{npm start}, \texttt{npm run dev} i \texttt{npm run db} funcionen sobre una base
-buida. La ruta es pot sobreescriure amb \texttt{DB\_PATH}.
+L'esquema es crea de forma idempotent a l'arrencada (\texttt{db/create\_db.js}), de
+manera que \texttt{npm start}, \texttt{npm run dev} i \texttt{npm run db} funcionen
+sobre una base buida. El mateix fitxer afegeix amb \texttt{ALTER TABLE} les columnes
+\texttt{totp\_secret}, \texttt{totp\_enabled} i \texttt{trophies} a bases antigues. La
+ruta es pot sobreescriure amb \texttt{DB\_PATH}. Els usuaris de desenvolupament de
+\texttt{db/seed.sql} només s'importen quan la taula \texttt{users} és buida, de manera
+que un desplegament amb volum propi conserva els comptes reals.
 
-\subsection{Registre}
+\subsection{Registre i política de contrasenyes}
 
-\texttt{POST /api/register} valida, en aquest ordre: camps obligatoris (usuari, correu, data
-de naixement i contrasenya), longitud mínima de l'usuari (3 caràcters, com al mòdul PHP
-anterior), format del correu, data de naixement real i edat mínima de 16 anys, coincidència
-de la confirmació si s'envia i política de contrasenya. La política és compartida amb la
-recuperació i el canvi de contrasenya: mínim 12 caràcters Unicode, sense exigir majúscules
-ni símbols, i rebuig de contrasenyes filtrades consultant Pwned Passwords amb
-\textit{k-anonymity} (només s'envien els cinc primers caràcters del SHA-1). Si el servei
-extern no respon, es permet continuar i només es registra el codi \texttt{HIBP\_UNAVAILABLE}.
+\texttt{POST /api/register} valida, en aquest ordre: camps obligatoris (usuari, correu,
+data de naixement i contrasenya), longitud mínima de l'usuari (3 caràcters), format del
+correu, data de naixement real i edat mínima de 16 anys, coincidència de la confirmació
+si s'envia i política de contrasenya.
+
+La política és compartida amb la recuperació i el canvi de contrasenya: mínim 12
+caràcters Unicode, sense exigir majúscules ni símbols, i rebuig de contrasenyes
+filtrades consultant Pwned Passwords amb \emph{k-anonymity} (només s'envien els cinc
+primers caràcters del SHA-1 i el servidor compara el sufix). Si el servei extern no
+respon en 5~s, es permet continuar i només es registra el codi
+\texttt{HIBP\_UNAVAILABLE}, perquè una caiguda d'un tercer no bloquegi el registre.
 
 La contrasenya s'emmagatzema amb Argon2id i la inserció aprofita les restriccions
-\texttt{UNIQUE} de SQLite per respondre amb un 409 quan l'usuari o el correu ja existeixen.
-El registre retorna el token i deixa la cookie de sessió preparada.
+\texttt{UNIQUE} de SQLite per respondre amb un 409 quan l'usuari o el correu ja
+existeixen. El registre retorna el token, deixa la cookie de sessió preparada i respon
+\texttt{201}. El formulari Eta envia les dades per Ajax i després navega a l'inici; el
+client Vite desa el token i entra al menú.
 
 \subsection{Sessió i autenticació}
 
-El token és un JWT de dues hores amb \texttt{id} i \texttt{username}. Viatja en una cookie
-\texttt{httpOnly}, \texttt{sameSite=lax} i \texttt{secure} quan
-\texttt{COOKIE\_SECURE=production}, i també es retorna al cos de la resposta perquè el
-client Vite el pugui reutilitzar en un altre origen. El middleware \texttt{attachUser}
-verifica la cookie a cada petició; \texttt{auth} protegeix les pàgines i les rutes
-d'API (retornant \texttt{401} JSON a \texttt{/api/*} i una redirecció a \texttt{/login} a
-les pàgines).
+El token és un JWT de dues hores amb \texttt{id} i \texttt{username}. Viatja en una
+cookie \texttt{httpOnly}, \texttt{sameSite=lax} i \texttt{secure} quan
+\texttt{COOKIE\_SECURE=production}, amb una durada de cookie d'una hora, i també es
+retorna al cos de la resposta perquè el client Vite el pugui reutilitzar en un altre
+origen. El client el guarda a \texttt{sessionStorage} (sobreviu a una recàrrega, no al
+tancament de la pestanya) i l'envia com a \texttt{Authorization: Bearer}.
+
+El middleware \texttt{attachUser} accepta el Bearer o la cookie i verifica la signatura
+a cada petició; si el token és invàlid i no venia per capçalera, esborra la cookie.
+\texttt{auth} protegeix les pàgines i les rutes d'API (retornant \texttt{401} JSON a
+\texttt{/api/*} i una redirecció a \texttt{/login} a les pàgines). Un middleware global
+consulta la base de dades a cada petició autenticada i aplica el baneig abans d'arribar
+a qualsevol ruta.
+
+\subsection{Verificació en dos passos (2FA)}
+
+El segon factor és TOTP (RFC 6238): codi de 6 dígits, període de 30~s, HMAC-SHA-1 i
+secret Base32, compatible amb Google Authenticator, Authy o 1Password. El flux té
+quatre passes:
+
+\begin{enumerate}[nosep]
+  \item La ruta \texttt{/api/2fa/setup} (amb sessió) genera un secret nou, el desa com
+        a pendent (\texttt{totp\_enabled = 0}) i retorna el secret i un codi QR
+        incrustat com a imatge PNG\@. L'URI \texttt{otpauth://totp/} porta l'emissor
+        \enquote{El torneo de los magos} i l'etiqueta de l'usuari; el text sota el QR
+        permet introduir la clau a mà.
+  \item \texttt{POST /api/2fa/enable} comprova el codi de 6 dígits i només aleshores
+        activa \texttt{totp\_enabled}. Si l'usuari abandona la configuració, el secret
+        queda pendent i el següent \texttt{setup} el substitueix; encara no protegeix
+        el compte.
+  \item \texttt{POST /api/2fa/disable} exigeix un codi actual abans d'esborrar el
+        secret, de manera que una sessió robada no pugui llevar el segon factor.
+  \item \texttt{POST /api/login} verifica primer la contrasenya. Si el compte té 2FA,
+        no emet cap token de sessió: retorna \texttt{\{requires2fa: true, challenge\}}.
+        El repte és un JWT de 5~minuts amb \texttt{scope} igual a \texttt{2fa} que
+        només prova que la contrasenya era correcta. \texttt{POST /api/login/2fa}
+        valida el repte, el codi
+        i l'estat del compte i aleshores emet el token de dues hores i la cookie.
+\end{enumerate}
+
+El repte no serveix com a sessió: \texttt{attachUser} rebutja qualsevol token amb
+\texttt{scope}, i les rutes de joc també el refusen. Totes les rutes de 2FA responen
+amb \texttt{Cache-Control: no-store}; les d'activació, desactivació i
+\texttt{login/2fa} tenen un límit de 10 intents per usuari cada 15~minuts (la clau és
+el nom d'usuari, no la IP). Els codis incorrectes no es registren. Els comptes
+bloquejats tampoc no poden completar el segon pas.
 
 \subsection{Perfil i avatar}
 
-\texttt{GET /profile} renderitza la plantilla \texttt{profile.eta} amb les dades de
-l'usuari. \texttt{PUT /api/profile} accepta \texttt{multipart/form-data} amb un sobrenom i,
-opcionalment, una imatge: límit de 2 MB, tipus permesos JPEG, PNG i WebP, nom aleatori
-generat amb \texttt{randomUUID()} (no s'usa mai el nom original) i esborrat de l'avatar
-anterior si era una pujada nostra. Els fitxers viuen a \texttt{UPLOAD\_DIR} i es publiquen
-a \texttt{/uploads}.
+\texttt{GET /api/me} retorna usuari, correu, naixement, sobrenom, avatar,
+\texttt{totpEnabled} i \texttt{trophies}. \texttt{PUT /api/profile} accepta
+\texttt{multipart/form-data} amb un sobrenom no buit i, opcionalment, una imatge: límit
+de 2~MB, tipus permesos JPEG, PNG i WebP, nom aleatori generat amb
+\texttt{randomUUID()} (no s'usa mai el nom original) i esborrat de l'avatar anterior si
+era una pujada nostra. Els fitxers viuen a \texttt{UPLOAD\_DIR} i es publiquen a
+\texttt{/uploads}. El client Vite mostra una previsualització abans de desar i valida la
+mida al navegador; el servidor torna a validar-la.
 
-\subsection{Canvi de contrasenya}
+\subsection{Canvi de contrasenya i eliminació de compte}
 
-\texttt{POST /api/password} demana la contrasenya actual, la nova i la confirmació. Comprova
-els camps, la coincidència, la política de 12 caràcters i, finalment, verifica la
-contrasenya actual amb Argon2 abans d'actualitzar el hash. És el darrer mòdul heretat del
-panell PHP i comparteix el mateix validador que el registre i la recuperació.
-
-\subsection{Recuperació de contrasenya}
-
-El flux evita revelar si un correu existeix: la resposta és sempre la mateixa i es retorna
-abans de consultar la base de dades o de contactar amb Brevo. Els límits són 5 peticions
-per IP cada 15 minuts i, per correu, 1 per minut i 3 per hora (la clau és el SHA-256 del
-correu, no el correu en clar). Es genera un token de 32 bytes aleatoris, es guarda només el
-seu SHA-256 amb una caducitat de 30 minuts i s'envia l'enllaç per l'API REST de Brevo.
-L'enllaç apunta al client (\texttt{FRONTEND\_URL\#reset-password=<token>}); el servidor
-només redirigeix \texttt{/forgot} cap allà. El consum del token és una transacció
-\texttt{immediate} de SQLite: es revalida, s'actualitza el hash i s'esborren els tokens de
-l'usuari, de manera que dues peticions simultànies no poden canviar la contrasenya dues
-vegades. Els errors de correu es registren només amb codis
-(\texttt{BREVO\_HTTP\_4xx}, \texttt{BREVO\_TIMEOUT}, etc.).
-
-\subsection{Eliminació de compte}
+\texttt{POST /api/password} demana la contrasenya actual, la nova i la confirmació.
+Comprova els camps, la coincidència, la política de 12 caràcters i, finalment, verifica
+la contrasenya actual amb Argon2 abans d'actualitzar el hash.
 
 \texttt{POST /api/delete} exigeix la contrasenya actual, elimina en una transacció els
 tokens de recuperació i l'usuari, neteja la cookie, esborra l'avatar pujat i respon
 \texttt{204}. Les rutes de pàgina \texttt{/delete} i \texttt{/profile} comproven que
 l'usuari existeixi a la base de dades, no només que el token sigui vàlid.
 
+\subsection{Recuperació de contrasenya}
+
+El flux evita revelar si un correu existeix: per a un correu amb format vàlid, la
+resposta és sempre la mateixa i es retorna abans de consultar la base de dades o de
+contactar amb Brevo. Els límits són 5 peticions per IP cada 15 minuts, 10 intents de
+restabliment per IP cada 15 minuts i, per correu, 1 per minut i 3 per hora (la clau és
+el SHA-256 del correu, no el correu en clar). Es genera un token de 32 bytes
+aleatoris, es guarda només el seu SHA-256 amb una caducitat de 30 minuts i s'envia
+l'enllaç per l'API REST de Brevo\@.
+
+L'enllaç apunta al servidor (\texttt{SERVER\_URL/reset\#reset-password=<token>}); si
+\texttt{CLIENT\_URL} està definida, el servidor redirigeix \texttt{/reset} al client i
+el fragment es conserva, de manera que el formulari de nova contrasenya viu a la
+interfície Vite. El client llegeix el fragment, l'esborra de l'historial i envia el
+token a \texttt{POST /api/reset-password}. El consum és una transacció
+\texttt{immediate} de SQLite: es revalida, s'actualitza el hash i s'esborren els tokens
+de l'usuari, de manera que dues peticions simultànies no poden canviar la contrasenya
+dues vegades. Els errors de correu es registren només amb codis
+(\texttt{BREVO\_HTTP\_401}, \texttt{BREVO\_TIMEOUT}, etc.).
+
 \subsection{Baneig i moderació}
 
-La columna \texttt{isBanned} i el motiu associat s'apliquen en un middleware global: un
-compte bloquejat només pot veure \texttt{/banned} (i tancar sessió via
-\texttt{/api/logout}); qualsevol altra pàgina el redirigeix i qualsevol altra crida a
-l'API retorna \texttt{403} amb el motiu i la ruta de destí. Això evita l'estat sense
-sortida: si el baneig bloquegés també el tancament de sessió, l'usuari quedaria atrapat.
+La columna \texttt{isBanned} i el motiu associat s'apliquen en un middleware global que
+consulta la base de dades: un compte bloquejat només pot veure \texttt{/banned} (i
+tancar sessió via \texttt{/api/logout}); qualsevol altra pàgina el redirigeix i
+qualsevol altra crida a l'API, inclosa l'API de joc, retorna \texttt{403} amb el motiu
+i la ruta de destí. Això evita l'estat sense sortida: si el baneig bloquegés també el
+tancament de sessió, l'usuari quedaria atrapat. A més, l'API de joc rebutja els tokens
+que portin la marca de baneig i els reptes de 2FA.
 
 \subsection{La part multijugador d'aquest mòdul}
 
@@ -248,101 +347,199 @@ alhora:
 
 \begin{itemize}
   \item \textbf{Identitat única per a tots els canals.} El mateix JWT autoritza les
-        peticions HTTP i l'entrada a la sala WebSocket, encara que el client i el servidor
-        estiguin en dominis diferents (\texttt{CLIENT\_ORIGIN} i CORS amb credencials).
-  \item \textbf{Una sola llista de jugadors.} El registre, el perfil i el baneig són els
-        mateixos per a tothom; no existeix un ``usuari del joc'' separat de l'usuari web.
+        peticions HTTP, l'entrada a la sala i les accions de joc, encara que el client
+        i el servidor estiguin en dominis diferents (\texttt{CLIENT\_ORIGIN} i CORS
+        amb credencials).
+  \item \textbf{Una sola llista de jugadors.} El registre, el perfil, el baneig i els
+        trofeus són els mateixos per a tothom; no existeix un \enquote{usuari del joc}
+        separat de l'usuari web.
   \item \textbf{Concurrència.} \texttt{better-sqlite3} és síncron i SQLite té un sol
         escriptor; juntament amb les transaccions, això evita condicions de cursa en
-        registres duplicats i en el consum de tokens. Els límits de peticions són en
-        memòria del procés, amb neteja mandrosa perquè la memòria no creixi sense control.
+        registres duplicats, en el consum de tokens de recuperació i en l'eliminació
+        de comptes. Els límits de peticions són en memòria del procés, amb neteja
+        mandrosa perquè la memòria no creixi sense control.
+  \item \textbf{Protecció del compte.} El 2FA protegeix l'accés que després autoritza
+        la partida; desactivar-lo o canviar-lo exigeix un codi actual, i el repte de
+        login no pot obrir una sala.
   \item \textbf{Privacitat entre jugadors.} La recuperació de contrasenya no confirma
-        l'existència d'un compte, i les rutes d'API no retornen mai el hash ni el correu
-        d'altres usuaris.
-  \item \textbf{Moderació efectiva.} El baneig s'aplica a les pàgines, a l'API i al
-        \texttt{onAuth} de la sala, de manera que un compte bloquejat no pot continuar
-        jugant amb una pestanya oberta.
+        l'existència d'un compte, i les rutes d'API no retornen mai el hash ni el
+        correu d'altres usuaris. El joc només mostra el nom d'usuari.
+  \item \textbf{Moderació efectiva.} El baneig s'aplica a les pàgines, a l'API i a
+        l'API de joc, de manera que un compte bloquejat no pot continuar jugant amb una
+        pestanya oberta.
 \end{itemize}
 
 % ---------------------------------------------------------------------------
 \section{Mòdul d'Interacció}
+\label{sec:interaccio}
 
 \subsection{Tecnologies i pantalles}
 
 El client és una aplicació Vite amb PixiJS\ v8 per al renderitzat, \texttt{pixi-tiledmap}
-per carregar el mapa de Tiled i \texttt{colyseus.js} per a la xarxa. Les pantalles són el
-menú (entrar o registrar-se, amb l'opció d'indicar un identificador de sala), la
-recuperació de contrasenya, el lobby d'equips, la partida i el resultat.
+per carregar el mapa de Tiled i \texttt{axios} per a la xarxa. No fa servir cap
+framework d'UI: el DOM de \texttt{client/index.html} conté les pantalles i
+\texttt{client/src/main.js} les activa.
+
+Les pantalles són:
+
+\begin{itemize}[nosep]
+  \item \textbf{Accés}: quatre formularis en la mateixa targeta (entrar, registrar-se,
+        recuperar i restablir la contrasenya). El camp de codi TOTP apareix quan el
+        servidor respon \texttt{requires2fa}.
+  \item \textbf{Menú}: iniciar partida, crear sala, unir-se amb un codi, perfil i
+        tancar sessió; mostra l'avatar, el sobrenom i les copes.
+  \item \textbf{Perfil}: avatar, dades, canvi de contrasenya, 2FA, eliminació del
+        compte i comptador de trofeus.
+  \item \textbf{Lobby}: sis equips, estat de cada equip, codi de sala i sortida.
+  \item \textbf{Partida}: canvas de PixiJS, HUD d'abast, ping i ajustos.
+  \item \textbf{Resultat}: guanyador, botó de revanxa i tornada al menú.
+\end{itemize}
 
 \subsection{Mapa i renderitzat isomètric}
 
 El mapa viu a \texttt{client/public/assets/map.tmj}: $60 \times 60$ caselles de
-$232 \times 110$ píxels amb les capes \texttt{ground}, \texttt{grass}, \texttt{sanctuary},
-\texttt{walls}, \texttt{details} i \texttt{collision}. Les propietats del mapa guarden les
-posicions de sortida dels sis equips, la copa a $[55,55]$ i vuit boles de millora.
+$232 \times 110$ píxels amb les capes \texttt{ground}, \texttt{grass},
+\texttt{sanctuary}, \texttt{walls}, \texttt{details} i \texttt{collision}. Les
+propietats del mapa guarden les posicions de sortida dels sis equips
+(\texttt{spawnPositions}), la copa a $[55,55]$ (\texttt{trophyPosition}) i vuit boles
+de millora (\texttt{boostPositions}). El laberint té passadissos de dues caselles, 79
+cruïlles i 42 connexions alternatives; els sis jugadors surten d'un bloc compacte de
+$2 \times 3$ caselles.
 
-El servidor llegeix el mateix fitxer en arrencar: en deriva la mida de la graella i la
-llista de caselles bloquejades de la capa \texttt{collision}, o sigui que el mapa és
-l'única font de veritat per al client i per al servidor. Per això cal reiniciar el servidor
-després de modificar-lo.
+El servidor llegeix el mateix fitxer en arrencar (\texttt{game/map.js}): en deriva la
+mida de la graella i la llista de caselles bloquejades de la capa \texttt{collision},
+o sigui que el mapa és l'única font de veritat per al client i per al servidor. Per
+això cal reiniciar el servidor després de modificar-lo. La graella del client està
+fixada a 60 a \texttt{utils/constants.js} i s'ha de mantenir sincronitzada amb
+l'amplada del tmj.
 
-Al client, \texttt{renderTerrainSurfaces()} recorre les capes de terra i crea un sol
-\texttt{Sprite} per casella, mantenint l'ordre de pintat entre herba, jardí i santuari; si
-cada capa es dibuixés per separat, les cares laterals d'un cub taparien el terra veí i el
-mapa semblaria elevat. Els personatges són fulls d'animació de sis cases
-(Gryffindor, Ravenclaw, Slytherin, Hufflepuff, Beauxbatons i Durmstrang). Cada full té tres
-files (perfil, esquerra/dreta, davant/darrere) i un nombre de fotogrames diferent; el codi
-retalla cada fotograma pels píxels opacs i l'escala a $88 \times 128$ perquè tots els
-personatges tinguin la mateixa mida en pantalla. La direcció del moviment tria la fila, i
-la càmera escala el món per cobrir la finestra i segueix el jugador local.
+Al client, \texttt{renderTerrainSurfaces()} recorre les capes de terra
+(\texttt{sanctuary}, \texttt{grass} i \texttt{ground}) i crea un sol \texttt{Sprite}
+per casella, mantenint l'ordre de pintat; si cada capa es dibuixés per separat, les
+cares laterals d'un cub taparien el terra veí i el mapa semblaria elevat. Els
+personatges són fulls d'animació de sis cases (Gryffindor, Ravenclaw, Slytherin,
+Hufflepuff, Beauxbatons i Durmstrang). Cada full té tres files (perfil, davant i
+darrere) i un nombre de fotogrames diferent; el codi retalla cada fotograma pels píxels
+opacs i l'escala a $88 \times 128$ perquè tots els personatges tinguin la mateixa mida
+en pantalla. La direcció del moviment tria la fila (X usa el perfil, Y usa davant o
+darrere) i la càmera escala el món per cobrir la finestra de referència i segueix el
+jugador local.
+
+Els elements de joc es dibuixen a sobre: l'emblema del santuari, la copa amb la seva
+ombra, les boles amb una animació de flotació, el text \enquote{+1} en recollir-ne una
+i l'etiqueta \enquote{¡Expelliarmus!} a les disputes. El pathfinding del client i el del
+servidor són el mateix BFS de quatre direccions, però el del client només serveix per
+previsualitzar el camí i predir el moviment; la decisió final és del servidor.
 
 \subsection{Lobby, equips i inici de partida}
 
-En entrar, el client crea una sala nova o s'uneix a una d'existent amb
-\texttt{joinById}. El servidor admet fins a 6 jugadors; cadascun tria una casa i dues
-persones no poden triar la mateixa. La partida comença quan tots els jugadors han triat
-equip i se supera el mínim (1 en desenvolupament, 2 en producció). En aquell moment la sala
-s'estableix com a \texttt{locked}: no s'hi pot entrar a mig joc, cosa que garanteix que tots
-els clients vegin el mateix inici.
+En entrar, el client crida \texttt{POST /api/game/join}. Si no indica cap codi, el
+servidor reutilitza la sala on ja és el jugador o en crea una de nova; si indica un
+codi, s'uneix a aquesta sala. Els codis són sis caràcters sense lletres ambigües
+(\texttt{ABCDEFGHJKLMNPQRSTUVWXYZ23456789}) i es poden copiar des del lobby. El
+servidor admet fins a 6 jugadors; cadascun tria una casa i dues persones no poden triar
+la mateixa. La partida comença quan tots els jugadors han triat equip i s'arriba al
+mínim (1 en desenvolupament, 2 en producció). En aquell moment la sala queda
+bloquejada (\texttt{locked}): no s'hi pot entrar a mig joc, cosa que garanteix que tots
+els clients vegin el mateix inici. En sortir, l'equip queda lliure; quan l'últim
+jugador marxa, la sala s'esborra.
 
-\subsection{Moviment autoritatiu i sincronització}
+\subsection{Protocol HTTP, cursor i ritme de comunicació}
 
-El protocol és intencionadament curt:
+El joc és una API REST. La taula~\ref{tab:api-joc} resumeix les cinc accions.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Petició} & \textbf{Efecte} \\
+\midrule
+\texttt{POST /api/game/join} & Obre o recupera una sala i retorna
+\texttt{roomId}, \texttt{playerId}, l'estat complet, els esdeveniments, el cursor i
+\texttt{serverTime}. \\
+\texttt{GET /api/game/:roomId} & Retorna només els esdeveniments posteriors al
+paràmetre \texttt{since}, l'estat actual, el cursor nou i el rellotge del servidor.
+Actualitza el \texttt{lastSeen} i, si s'envia \texttt{rtt}, el ping del jugador. \\
+\texttt{POST /api/game/:roomId/team} & Tria equip (1--6) durant el lobby. \\
+\texttt{POST /api/game/:roomId/move} & Envia \texttt{\{x, y, clickedAt\}}; el servidor
+valida i inicia o rebutja el moviment. \\
+\texttt{POST /api/game/:roomId/leave} & Surt de la sala; també accepta el token al cos
+per al \texttt{sendBeacon} de tancament de pestanya. \\
+\bottomrule
+\end{tabularx}
+\caption{Accions del client cap a l'API de joc.}
+\label{tab:api-joc}
+\end{table}
+
+El servidor només emet tres tipus d'esdeveniments: \texttt{move}, \texttt{duel} i
+\texttt{error}; la resta de canvis (equips, fases, boles i guanyador) viatgen dins del
+snapshot d'estat. Això manté el protocol petit i fa que el client només hagi de
+reproduir animacions, no reconstruir la partida.
+
+El client fa el primer \texttt{join} i després entra en un bucle de sondeig. Cada
+petició \texttt{GET} porta el cursor \texttt{since} i el client només processa els
+esdeveniments nous; la resposta inclou l'estat complet (la graella de col·lisions
+només viatja quan \texttt{since=0}) i el cursor actualitzat. El ritme objectiu és de
+100~ms (10~Hz): la petició següent es programa 100~ms després de l'inici de l'anterior,
+de manera que amb un RTT baix s'envien unes deu peticions per segon i amb un RTT alt el
+bucle s'executa tan de pressa com la xarxa permet. El servidor no té cap \emph{tick}
+fix: reacciona a les peticions i als temporitzadors de moviment, disputes i victòria.
+Un escombrador recorre les sales cada 2~s i expulsa el jugador que fa més de 15~s que no
+consulta.
+
+El primer snapshot inclou \texttt{blocked} (la llista de caselles bloquejades
+serialitzada) i, quan el cursor avança, deixa d'incloure's per no repetir la graella de
+col·lisions a cada resposta. Cada sessió té una cua
+d'esdeveniments amb un màxim de 200; si un client s'atura molt de temps, els
+esdeveniments més antics es descarten, però l'estat complet de la resposta següent
+torna a convergir.
+
+\subsection{Moviment autoritatiu, predicció i sincronització}
+
+El protocol de moviment és intencionadament curt:
 
 \begin{enumerate}[nosep]
-  \item El jugador fa clic en una casella. El client comprova que sigui dins de l'abast,
-        que no estigui bloquejada ni ocupada, i envia
-        \texttt{moveTo \{x, y, clickedAt: serverNow()\}}.
-  \item El servidor comprova la fase, que el jugador no estigui caminant ja, els límits, la
-        col·lisió, l'ocupació i el resultat de la cerca en amplada (BFS) sobre la graella.
-        La ruta ha de tenir almenys dues caselles i no superar \texttt{min(moveRange, 7)}.
-  \item Si és vàlida, retransmet a tothom:
+  \item El jugador fa clic en una casella. El client comprova que sigui dins de
+        l'abast i que el camí no travessi caselles bloquejades, calcula la ruta i
+        envia \texttt{moveTo \{x, y, clickedAt: serverNow()\}}.
+  \item El servidor comprova la fase, que el jugador no estigui caminant ja, els
+        límits, la col·lisió, l'ocupació i el resultat del BFS sobre la graella. La
+        ruta ha de tenir almenys dues caselles i no superar
+        \texttt{min(moveRange, 7)}.
+  \item Si és vàlida, retransmet a tothom l'esdeveniment \texttt{move} amb el camí,
+        \texttt{startTime} i \texttt{msPerTile = 300}.
 \end{enumerate}
 
-\begin{lstlisting}
-{ id, path: [{x, y}, ...], startTime: Date.now(), msPerTile: 300 }
-\end{lstlisting}
-
-Cada client interpola el personatge amb \texttt{serverNow() = Date.now() + offset}, on
-\texttt{offset} és la mitjana de les vuit darreres mostres de \texttt{ping}/\texttt{pong}
-(la marca de temps del servidor menys la del client, ajustada pel temps d'anada i tornada).
-Així tothom veu la mateixa animació encara que els rellotges estiguin desfasats. El client
-no fa predicció local: la posició sempre arriba del servidor. A canvi de més latència
-percebuda, s'elimina qualsevol possibilitat de desincronització o de trampa de posició.
+Cada client interpola el personatge amb
+\texttt{serverNow() = Date.now() + offset}, on \texttt{offset} es calcula amb les
+mostres de ping (secció~\ref{sec:ping}). Així tothom veu la mateixa animació encara que
+els rellotges estiguin desfasats. El client també fa una \textbf{predicció visual}: en
+clicar, comença a caminar de seguida amb la seva pròpia marca de temps i, quan arriba
+l'eco del servidor, el conserva si el camí coincideix, o l'adapta si el servidor n'ha
+retallat la part final per una disputa. Quan la predicció acaba, el personatge espera
+la posició autoritativa en lloc de saltar enrere. La predicció no decideix res: el
+servidor continua validant cada pas i és l'única font de la posició final.
 
 \subsection{Disputes per una casella}
 
-Dos jugadors poden clicar la mateixa casella gairebé alhora. El servidor no decideix amb el
-primer missatge que arriba, perquè la latència afavoriria uns jugadors i no altres:
+Dos jugadors poden clicar la mateixa casella gairebé alhora. El servidor no decideix
+amb el primer missatge que arriba, perquè la latència afavoriria uns jugadors i no
+altres:
 
 \begin{itemize}
-  \item Cada destí té una \emph{reclamació} amb una finestra d'arbitratge de 250 ms,
-        ampliada fins a la meitat del RTT més alt dels clients (màxim 1500 ms).
-  \item Els candidats s'ordenen pel \texttt{clickedAt} estimat i, si empaten, per l'ordre
-        d'arribada. El servidor rebutja marques de temps massa antigues o futures.
+  \item Cada destí té una \emph{reclamació} amb una finestra que és el màxim entre
+        100~ms i la meitat del RTT més alt dels clients més 50~ms, amb un màxim de
+        1500~ms.
+  \item Els candidats s'ordenen pel \texttt{clickedAt} estimat i, si empaten, per
+        l'ordre d'arribada. El servidor accepta marques entre 5~s enrere i 100~ms
+        endavant; fora d'aquest marge usa l'hora de recepció.
   \item El guanyador recorre la ruta sencera. Els perdedors avancen fins a la casella
-        anterior a la disputada; en arribar-hi es retransmet \texttt{duel} i retrocedeixen
-        un 30\% dels passos (mínim un) amb una animació de retrocés.
+        anterior a la disputada; quan el guanyador arriba, es retransmet \texttt{duel}
+        i retrocedeixen un 30\% dels passos (mínim un) amb una animació de retrocés.
+  \item Si un clic arriba quan la disputa ja està resolta, s'hi afegeix com a perdedor
+        (o es rebutja amb \texttt{error} si la seva marca és anterior a la del
+        guanyador).
   \item Els temporitzadors de recollida de boles i de la copa s'associen a cada pas, de
         manera que només el qui trepitja la casella rep la millora o la victòria.
 \end{itemize}
@@ -352,101 +549,164 @@ resultat és el mateix per a tothom, i els clients només reprodueixen el que s'
 
 \subsection{Millores i condició de victòria}
 
-Hi ha vuit boles al mapa. Recollir-ne una augmenta l'abast de moviment en una casella, de 3
-a un màxim de 7, i desapareix de l'estat compartit; a partir del màxim, queden disponibles
-per als altres. Guanya qui arriba primer a la casella de la copa. En aquell moment el
-servidor atura les disputes, cancel·la els temporitzadors pendents, fixa el guanyador i
-retransmet l'estat \texttt{finished}; tots els clients veuen el mateix desenllaç.
+Hi ha vuit boles al mapa. Recollir-ne una augmenta l'abast de moviment en una casella,
+de 3 a un màxim de 7, i desapareix de l'estat compartit; a partir del màxim, queden
+disponibles per als altres. Guanya qui arriba primer a la casella de la copa, també si
+la travessa en un recorregut. En aquell moment el servidor atura les disputes,
+cancel·la els temporitzadors pendents, fixa el guanyador, incrementa el comptador de
+trofeus de l'usuari i retransmet l'estat \texttt{finished}; tots els clients veuen el
+mateix desenllaç. El servidor crida \texttt{GameRoom.onWin}, connectat a
+\texttt{addTrophy} a \texttt{index.js}, de manera que el trofeu és persistent.
 
-\subsection{HUD, ping i resultat}
+\subsection{HUD, ping, so i resultat}
 
 La interfície mostra l'abast actual, el panell de ping de cada jugador (canvia de color
 segons la latència, es pot obrir amb el Tab) i la pantalla de resultat amb el nom del
-guanyador. Des d'allà es pot tornar a jugar (nova sala) o tancar la sessió. En sortir d'una
-sala, el client es torna a unir automàticament si l'usuari tria tornar a jugar.
+guanyador. Des d'allà es pot tornar a jugar (sala nova) o tornar al menú, on es pot
+tancar la sessió. En sortir d'una sala, el client es torna a unir automàticament si
+l'usuari tria tornar a jugar.
+
+L'àudio és local al navegador: \texttt{menu.mp3} sona a l'accés, al menú i al perfil, i
+\texttt{game.mp3} fa un crossfade en entrar a una sala. \texttt{spell.mp3} sona a
+l'inici de cada \texttt{duel}, \texttt{win.mp3} en passar a \texttt{finished} i
+\texttt{click.mp3} quan canvia la pantalla visible o el panell d'accés. Els volums es
+desen a \texttt{localStorage}; el panell d'ajustos (Esc) no és modal i no atura la
+partida, i el botó de música és a totes les pantalles.
 
 \subsection{La part multijugador del joc}
 
 \begin{itemize}
-  \item \textbf{Estat compartit declaratiu.} Colyseus\ sincronitza un \texttt{State} amb la
-        fase, la graella de col·lisions, el mapa de jugadors, les boles, la copa i el
-        guanyador. El client només dibuixa el que rep; no hi ha estat duplicat a cada costat.
+  \item \textbf{Estat compartit i cursor.} El servidor manté l'estat de la sala i una
+        cua d'esdeveniments per sessió; el client només dibuixa el que rep i no
+        duplica l'estat. El cursor \texttt{since} evita repetir esdeveniments i fa que
+        una pèrdua de xarxa es pugui recuperar amb la petició següent.
   \item \textbf{Reconciliació temporal.} Les rutes porten \texttt{startTime} i
-        \texttt{msPerTile}, i les animacions de duel porten la seva pròpia marca i durada.
-        El rellotge estimat permet que una animació de 300 ms per casella es vegi igual a
-        tots els navegadors.
-  \item \textbf{Justícia.} L'arbitratge per marca de clic, la finestra adaptada al RTT i el
-        retrocés parcial dels perdedors eviten que el guanyador sigui simplement el que té
-        menys latència.
-  \item \textbf{Integritat.} El servidor valida cada moviment (fase, límits, col·lisions,
-        ocupació, ruta i abast) i retransmet només rutes legals. Un client manipulat no pot
-        saltar-se el mapa ni moure's més caselles de les permeses.
-  \item \textbf{Presència i reconnexió.} En sortir, la sala allibera l'equip i cancel·la les
-        disputes obertes del jugador. Si la connexió es perd, el client recarrega la pàgina.
-  \item \textbf{Lobby sense sales públiques.} L'identificador de sala es pot compartir per
-        pantalla; no hi ha navegador de sales, cosa que simplifica el disseny i evita
+        \texttt{msPerTile}, i les animacions de duel porten la seva pròpia marca i
+        durada. El rellotge estimat permet que una animació de 300~ms per casella es
+        vegi igual a tots els navegadors.
+  \item \textbf{Justícia.} L'arbitratge per marca de clic, la finestra adaptada al RTT
+        i el retrocés parcial dels perdedors eviten que el guanyador sigui simplement
+        el que té menys latència.
+  \item \textbf{Integritat.} El servidor valida cada moviment (fase, límits,
+        col·lisions, ocupació, ruta i abast) i retransmet només rutes legals. Un client
+        manipulat no pot saltar-se el mapa ni moure's més caselles de les permeses.
+  \item \textbf{Presència i reconnexió.} En sortir, la sala allibera l'equip i cancel·la
+        les disputes obertes del jugador. El tancament de pestanya envia un
+        \texttt{sendBeacon} de sortida; si el navegador mor sense avisar, el jugador
+        s'expulsa al cap de 15~s sense sondeig. En tornar a entrar, el \texttt{join}
+        recupera la sala on ja era el jugador.
+  \item \textbf{Un sol procés, sales en memòria.} Les sales viuen al mapa
+        \texttt{rooms} del servidor; no hi ha persistència de partides ni un servei
+        extern de sales. Això fa el desplegament petit, però reiniciar el servidor
+        perd les partides en curs.
+  \item \textbf{Lobby per codi.} L'identificador de sala es pot compartir per pantalla;
+        no hi ha navegador de sales públiques, cosa que simplifica el disseny i evita
         llistats costosos.
 \end{itemize}
 
+\subsection{Ping i sincronització del rellotge}
+\label{sec:ping}
+
+Cada petició de sondeig mesura el temps d'anada i tornada:
+
+\[
+  \mathrm{RTT}_i = r_i - e_i,
+  \qquad
+  \mathrm{offset}_i = s_i + \frac{\mathrm{RTT}_i}{2} - r_i,
+\]
+
+on $e_i$ és l'instant d'enviament al client, $r_i$ l'instant de recepció i $s_i$ el
+\texttt{serverTime} que retorna la resposta. El client guarda les vuit darreres mostres.
+Com que la resposta més ràpida és la que té menys error de cua, l'\texttt{offset} global
+és el de la mostra amb el RTT mínim, no la mitjana; així l'animació no tremola. El RTT
+que s'informa al servidor és la mitjana arrodonida de les mostres disponibles (fins a
+vuit) i viatja com a paràmetre \texttt{rtt} del següent \texttt{GET}. El servidor el
+valida (0--5000~ms), l'arrodoneix i el desa a \texttt{player.ping}; el panell de ping
+mostra aquest valor, no una mesura local. El servidor usa el RTT més alt de la sala per
+ampliar la finestra d'arbitratge.
+
 % ---------------------------------------------------------------------------
 \section{Com es connecten els dos mòduls}
+\label{sec:connexio}
 
 La connexió és el testimoni JWT i un únic procés de servidor:
 
 \begin{enumerate}
-  \item L'usuari s'autentica contra el mòdul de gestió (\texttt{/api/login} o
-        \texttt{/api/register}). El servidor signa un token i el desa en una cookie
-        \texttt{httpOnly}; el client també el rep al cos de la resposta.
-  \item El client del joc passa el token com a opció de connexió a Colyseus:
-        \texttt{create("game", \{token\})} o \texttt{joinById(id, \{token\})}.
-  \item \texttt{GameRoom.onAuth} verifica el token amb el mateix \texttt{JWT\_SECRET},
-        rebutja els comptes bloquejats i impedeix que el mateix usuari entri dues vegades.
-        Si la verificació falla, la connexió es tanca abans de crear cap jugador.
-  \item A partir d'aquí, el nom d'usuari acompanya el jugador a l'estat de la sala i és el
-        que es mostra sobre el personatge.
+  \item L'usuari s'autentica contra el mòdul de gestió (\texttt{/api/login},
+        \texttt{/api/register} o el segon pas \texttt{/api/login/2fa}). El servidor
+        signa un token i el desa en una cookie \texttt{httpOnly}; el client també el rep
+        al cos de la resposta.
+  \item El client del joc envia el token com a \texttt{Authorization: Bearer} a
+        \texttt{/api/game/join}. El middleware de joc verifica la signatura, rebutja els
+        tokens amb \texttt{scope} (reptes de 2FA) i els que porten la marca de baneig;
+        el middleware global ja ha comprovat el baneig contra la base de dades.
+  \item A partir d'aquí, el nom d'usuari acompanya el jugador a l'estat de la sala i és
+        el que es mostra sobre el personatge. L'\texttt{id} és la clau de la sessió i
+        la que rep el trofeu.
 \end{enumerate}
 
-També hi ha dos llaços de tornada del joc cap al mòdul d'usuaris:
+També hi ha diversos llaços de tornada del joc cap al mòdul d'usuaris:
 
 \begin{itemize}
   \item El baneig es decideix a la base de dades compartida i s'aplica tant a les rutes
-        HTTP com a l'entrada a la sala.
-  \item L'enllaç de recuperació de contrasenya apunta al client Vite
-        (\texttt{FRONTEND\_URL}), perquè el formulari de nova contrasenya viu a la mateixa
-        interfície que el joc; el servidor només redirigeix \texttt{/forgot}.
+        HTTP com a l'API de joc.
+  \item La victòria incrementa \texttt{users.trophies}; \texttt{GET /api/me} ho
+        retorna i el menú i el perfil ho mostren.
+  \item L'enllaç de recuperació de contrasenya apunta al servidor i, quan
+        \texttt{CLIENT\_URL} està definida, redirigeix al client Vite, perquè el
+        formulari de nova contrasenya viu a la mateixa interfície que el joc; el
+        servidor redirigeix les pàgines antigues (incloent-hi \texttt{/forgot} i
+        \texttt{/reset}) al client.
+  \item El 2FA protegeix el mateix compte que després entra a la partida; el repte de
+        login no pot obrir una sala.
 \end{itemize}
 
-El desplegament manté aquesta separació: \texttt{docker compose} aixeca el servidor al port
-2567 i el client (nginx) al 8080; a Render hi ha dos serveis Docker, un disc persistent d'1
-GB per a la base de dades i els avatars al servidor, i el client genera
-\texttt{/config.js} a partir de \texttt{SERVER\_URL}. El servidor de joc només necessita el
-\texttt{map.tmj} del client, que es copia a la imatge.
+El desplegament manté aquesta separació: \texttt{docker compose} aixeca el servidor al
+port 2567 i el client (nginx) al 8080; a Render hi ha dos serveis Docker, un disc
+persistent d'1~GB per a la base de dades i els avatars al servidor, i el client genera
+\texttt{/config.js} a partir de \texttt{SERVER\_URL}. El servidor de joc només
+necessita el \texttt{map.tmj} del client, que es copia a la imatge; per això el context
+de construcció del servidor és l'arrel del repositori.
 
 % ---------------------------------------------------------------------------
 \section{Proves i qualitat}
+\label{sec:qualitat}
 
-El projecte no té un \texttt{npm test} al client, però el servidor inclou 35 proves amb
-\texttt{node --test}:
+El projecte no té un \texttt{npm test} als \texttt{package.json}, però les proves
+s'executen amb \texttt{node --test tests/*.test.js} a cada projecte: 43 proves al
+servidor i 5 al client, 48 en total.
 
 \begin{itemize}
-  \item \textbf{Política de contrasenyes}: longitud Unicode, mínim de 12 caràcters,
-        contrasenyes filtrades, k-anonymity i tolerància a caigudes de Pwned Passwords.
-  \item \textbf{Recuperació}: emmagatzematge només del hash, caducitat, un sol ús, consum
-        concurrent, límits per IP i per correu, mateixa resposta per a correus inexistents i
-        errors de Brevo sense dades sensibles.
-  \item \textbf{Mapa}: grandària, accessibilitat de totes les caselles, absència de zones
-        obertes de $3 \times 3$, sortides $2 \times 3$ i sincronia entre els fitxers de Tiled.
-  \item \textbf{Partida}: reinici d'estat entre rondes, victòria i sortida de clients, i una
-        prova de xarxa real amb dos clients Colyseus\ que veuen el mateix guanyador i tornen
-        a jugar.
+  \item \textbf{Política de contrasenyes} (4): longitud Unicode, mínim de 12 caràcters,
+        contrasenyes filtrades, \emph{k-anonymity} i tolerància a caigudes de Pwned
+        Passwords.
+  \item \textbf{Recuperació} (12): emmagatzematge només del hash, caducitat, un sol ús,
+        consum concurrent, límits per IP i per correu, mateixa resposta per a correus
+        inexistents, errors de Brevo sense dades sensibles i URL pública configurada.
+  \item \textbf{Verificació en dos passos} (5): secret pendent fins al primer codi,
+        activació i desactivació, límit d'intents, repte de login i rebuig del repte a
+        l'API de joc.
+  \item \textbf{Mapa} (5): grandària, accessibilitat de totes les caselles, absència de
+        zones obertes de $3 \times 3$, sortides $2 \times 3$, camí de la copa i
+        sincronia entre els fitxers de Tiled.
+  \item \textbf{Partida} (13): inici de sis jugadors, disputes, abast 3--7, boles,
+        temporitzadors, victòria, cancel·lació en desconnectar i reinici d'estat entre
+        rondes.
+  \item \textbf{Xarxa HTTP} (3): baneig, sortida amb \texttt{sendBeacon} i dos clients
+        reals que veuen el mateix guanyador i tornen a jugar.
+  \item \textbf{Base de dades} (1): el seed només omple una base buida.
+  \item \textbf{Client} (5): càmera que no revela més mapa del previst, pathfinding i
+        abast, i ordre de pintat del terreny.
 \end{itemize}
 
 A més, la compilació del client (\texttt{npm run build}) i el desplegament amb Docker
-serveixen de comprovació d'integració, i les rutes principals s'han provat manualment amb
-comptes reals (registre, sessió, canvi de contrasenya, baneig i partida de dos jugadors).
+serveixen de comprovació d'integració, i les rutes principals s'han provat manualment
+amb comptes reals (registre, sessió, 2FA, canvi de contrasenya, baneig i partida de dos
+jugadors).
 
 % ---------------------------------------------------------------------------
 \section{Distribució de tasques}
+\label{sec:tasques}
 
 El treball s'ha organitzat per funcionalitats verticals i diverses tasques s'han fet en
 parelles o en trucades de Discord, tal com reflecteix la taula. La distribució és
@@ -461,23 +721,27 @@ proves.
 Disseny funcional, model de dades i esquema SQL & \checkmark & \checkmark & \checkmark \\
 Backend d'autenticació (registre, login, logout) & \checkmark & & \checkmark \\
 Plantilles Eta, estils i accessibilitat de les pàgines & & \checkmark & \checkmark \\
-Política de contrasenyes i HIBP & & & \checkmark \\
+Política de contrasenyes i HIBP & \checkmark & & \checkmark \\
+Verificació en dos passos (TOTP, QR i repte de login) & \checkmark & & \checkmark \\
 Recuperació de contrasenya i integració amb Brevo & \checkmark & & \checkmark \\
-Perfil, pujada d'avatar i neteja de fitxers & & \checkmark & \\
+Perfil, pujada d'avatar i neteja de fitxers & & \checkmark & \checkmark \\
 Canvi de contrasenya & \checkmark & & \\
 Eliminació de compte i transaccions & \checkmark & \checkmark & \\
 Baneig, motius i pantalla de compte bloquejat & & \checkmark & \checkmark \\
+Trofeus persistents i comptador al perfil & & \checkmark & \checkmark \\
 Mapa de Tiled, capes i col·lisions & \checkmark & & \checkmark \\
 Moviment autoritatiu, BFS i validació al servidor & \checkmark & & \\
+API HTTP de sales, cursor i sondeig & \checkmark & \checkmark & \\
 Renderitzat isomètric, càmera i ordre de pintat & & \checkmark & \\
 Personatges, fulls d'animació i direccions & & & \checkmark \\
 Lobby, selecció d'equip i inici de partida & \checkmark & \checkmark & \\
 Sincronització de rellotge, ping i interpolació & \checkmark & \checkmark & \\
+Predicció local i reconciliació amb l'eco & \checkmark & \checkmark & \\
 Disputes per casella, arbitratge i retrocés & \checkmark & & \checkmark \\
 Boles de millora, abast i condició de victòria & & \checkmark & \checkmark \\
-HUD, panell de ping i pantalla de resultat & & & \checkmark \\
-Integració JWT entre HTTP i WebSocket & \checkmark & \checkmark & \\
-Docker, Render i variables d'entorn & & \checkmark & \checkmark \\
+HUD, panell de ping, so i ajustos & & \checkmark & \checkmark \\
+Integració JWT entre web i joc & \checkmark & \checkmark & \\
+Docker, Render, variables d'entorn i desplegament & & \checkmark & \checkmark \\
 Proves automatitzades i comprovacions manuals & \checkmark & \checkmark & \checkmark \\
 Documentació i informe & \checkmark & \checkmark & \checkmark \\
 \bottomrule
@@ -485,6 +749,7 @@ Documentació i informe & \checkmark & \checkmark & \checkmark \\
 
 % ---------------------------------------------------------------------------
 \section{Enllaços}
+\label{sec:enllacos}
 
 Els enllaços definitius s'afegiran en lliurar el projecte; de moment es conserven com a
 places de referència:
@@ -502,33 +767,48 @@ places de referència:
 
 % ---------------------------------------------------------------------------
 \section{Limitacions i treball futur}
+\label{sec:limitacions}
 
 \begin{itemize}
-  \item \textbf{Sense predicció local.} El moviment és totalment autoritatiu, cosa que
-        garanteix la coherència però afegeix la meitat del RTT a cada clic. Una predicció
-        amb reconciliació seria la millora natural.
-  \item \textbf{Tokens no revocables.} El JWT és sense estat i dura dues hores. El baneig
-        immediat es comprova a la base de dades a les rutes HTTP; a la sala es valida el
-        token en el moment de la connexió, no a cada moviment. Una llista de revocació o
-        tokens més curts ho resoldrien del tot.
-  \item \textbf{Límits de peticions en memòria.} Funcionen bé amb un sol procés; amb
-        diverses instàncies caldria un magatzem compartit.
-  \item \textbf{Sense historial de partides.} Ni rànquing ni estadístiques persistents;
-        l'estat de la sala viu només mentre duri la partida.
-  \item \textbf{Una sola sala per codi.} L'identificador és l'habitació de Colyseus; no hi
-        ha llistat de sales públiques ni aparellament automàtic.
-  \item \textbf{Avatar i sobrenom només a la web.} El joc mostra el nom d'usuari; portar el
-        sobrenom i l'avatar a l'estat compartit seria un canvi petit i visible.
+  \item \textbf{Sondeig cada 100~ms.} És senzill i funciona sense WebSockets, però cada
+        acció pateix el RTT i el client només veu els canvis amb un decalatge d'un
+        sondeig més el RTT\@. Un canal de servidor a client (SSE o WebSocket) reduiria
+        la latència i el trànsit.
+  \item \textbf{Predicció només visual.} El client comença a caminar de seguida, però el
+        servidor pot retallar la ruta per una disputa i la posició final sempre arriba
+        del servidor. Una reconciliació més fina (repeticions de posició) suavitzaria els
+        casos de disputa.
+  \item \textbf{Tokens no revocables.} El JWT és sense estat i dura dues hores. Canviar
+        la contrasenya o desactivar el 2FA no invalida les sessions ja obertes; una
+        llista de revocació o tokens més curts ho resoldrien del tot.
+  \item \textbf{Sense codis de recuperació de 2FA.} Si es perd l'aplicació
+        d'autenticació, cal intervenció manual a la base de dades. Afegir codis d'un
+        sol ús seria el següent pas.
+  \item \textbf{Límits i sales en memòria.} Funcionen bé amb un sol procés; amb diverses
+        instàncies caldria un magatzem compartit i un servei de sales. Reiniciar el
+        servidor perd les partides en curs.
+  \item \textbf{Sense historial de partides.} Només es persisteix el comptador de
+        trofeus; no hi ha rànquing, estadístiques ni replay.
+  \item \textbf{Cua d'esdeveniments finita.} El màxim de 200 esdeveniments per sessió
+        evita créixer sense control, però un client aturat molt de temps pot perdre
+        animacions; l'estat complet de la resposta següent el torna a posar al dia.
+  \item \textbf{Avatar i sobrenom només a la web.} El joc mostra el nom d'usuari;
+        portar el sobrenom i l'avatar a l'estat compartit seria un canvi petit i
+        visible.
+  \item \textbf{Sense llistat de sales.} No hi ha navegador de sales públiques ni
+        aparellament per unir-se a algú concret; per a una sala coneguda cal el codi.
+        \enquote{Iniciar partida} crea o recupera una sala pròpia.
 \end{itemize}
 
 \section{Conclusions}
+\label{sec:conclusions}
 
 El resultat és un joc multijugador complet amb un sistema d'usuaris real: la mateixa
 identitat serveix per entrar a la web i a la partida, el servidor decideix tot el que
 afecta la partida i tots els clients veuen el mateix món encara que tinguin latències
-diferents. La separació en dos mòduls ha permès treballar en paral·lel (interfície i
-autenticació d'una banda, mapa i sincronització de l'altra) sense duplicar dades ni
-lògica, i ha deixat el camí obert a millores com la predicció de moviment o l'historial
-de partides.
+diferents. La separació en dos mòduls ha permès treballar en paral·lel (interfície,
+autenticació i 2FA d'una banda; mapa, protocol i sincronització de l'altra) sense
+duplicar dades ni lògica, i ha deixat el camí obert a millores com la predicció amb
+reconciliació, l'historial de partides o un canal de servidor a client en temps real.
 
 \end{document}

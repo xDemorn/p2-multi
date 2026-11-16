@@ -16,7 +16,7 @@ mapData.layers.find((layer) => layer.name === "collision")?.data.forEach((gid, i
 
 export const isBlocked = (x, y) => BLOCKED.some(([blockedX, blockedY]) => blockedX === x && blockedY === y);
 
-// Breadth-first search on a 4-direction grid. Returns [{x,y}, ...] including the start tile.
+// BFS en 4 direcciones; el camino incluye la casilla inicial
 export function findPath(sx, sy, tx, ty) {
   const key = (x, y) => y * GRID + x;
   const previous = new Map([[key(sx, sy), null]]);

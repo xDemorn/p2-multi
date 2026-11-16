@@ -9,7 +9,7 @@ const GENERIC_MESSAGE = "Si existe una cuenta asociada a ese correo, recibirás 
 const INVALID_LINK = "El enlace no es válido o ha caducado. Solicita uno nuevo.";
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 
-// Fixed windows, bounded memory and lazy cleanup. Suitable for one server process.
+// limitador sencillo en memoria (vale para un solo proceso)
 export function createLimiter(now) {
   const entries = new Map();
   let nextCleanup = 0;
@@ -29,7 +29,7 @@ export function createLimiter(now) {
   };
 }
 
-// The Host header is user-controlled, so production must configure the public URL.
+// en producción la URL del enlace sale de la config, no de la cabecera Host
 export function recoveryUrl(req) {
   const configured = process.env.SERVER_URL || process.env.RENDER_EXTERNAL_URL;
   if (configured) return new URL("/", configured);
@@ -70,8 +70,7 @@ export function createPasswordRecoveryRouter({
     res.json({ message: GENERIC_MESSAGE });
     if (!perMinute || !perHour) return;
 
-    // Respond before querying accounts or contacting Brevo, on both account paths.
-    // This best-effort task is intentionally not a durable email queue.
+    // respondemos ya y el correo se envía después, exista o no la cuenta
     setImmediate(async () => {
       let tokenHash;
       try {
