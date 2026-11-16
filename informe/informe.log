@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026/Arch Linux) (preloaded format=pdflatex 2026.11.11)  15 NOV 2026 14:30
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026/Arch Linux) (preloaded format=pdflatex 2026.11.11)  16 NOV 2026 21:32
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -736,16 +736,10 @@ File: lstlang1.sty 2025/11/14 1.11b listings language file
 )
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10> not available
 (Font)              Font shape `T1/lmtt/b/n' tried instead on input line 189.
- [4{/usr/share/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}]
-Overfull \hbox (17.70882pt too wide) in paragraph at lines 265--270
-[]\T1/lmtt/m/n/10.95 POST /api/2fa/setup \T1/lmr/m/n/10.95 (-20) (amb ses-sió) 
-ge-ne-ra un se-cret nou, el desa com a pen-dent (\T1/lmtt/m/n/10.95 totp_enable
-d
- []
-
-[5] [6] [7] [8] [9] [10] [11]
-ignored: Infinite glue shrinkage found in box being split [
-12] [13] [14] (./informe.aux)
+ [4{/usr/share/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}] [5] [6] [7]
+[8] [9] [10] [11]
+ignored: Infinite glue shrinkage found in box being split [12] [13] [14
+] (./informe.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
@@ -754,11 +748,11 @@ Package rerunfilecheck Info: File `informe.out' has not changed.
 (rerunfilecheck)             Checksum: D6647429F9E733D4C08FD64E7213CE4E;5795.
  ) 
 Here is how much of TeX's memory you used:
- 17583 strings out of 468335
- 269862 string characters out of 5442519
+ 17582 strings out of 468335
+ 269849 string characters out of 5442519
  1064182 words of memory out of 5000000
- 45892 multiletter control sequences out of 15000+600000
- 702099 words of font info for 200 fonts, out of 8000000 for 9000
+ 45891 multiletter control sequences out of 15000+600000
+ 702110 words of font info for 200 fonts, out of 8000000 for 9000
  626 hyphenation exceptions out of 8191
  75i,10n,79p,1004b,2331s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf-dis
@@ -770,10 +764,10 @@ r/share/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/share/texmf-dist/font
 s/type1/public/lm/lmtk10.pfb></usr/share/texmf-dist/fonts/type1/public/lm/lmtt1
 0.pfb></usr/share/texmf-dist/fonts/type1/public/lm/lmtti10.pfb></usr/share/texm
 f-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb>
-Output written on informe.pdf (14 pages, 299693 bytes).
+Output written on informe.pdf (14 pages, 296836 bytes).
 PDF statistics:
- 357 PDF objects out of 1000 (max. 8388607)
- 311 compressed objects within 4 object streams
+ 358 PDF objects out of 1000 (max. 8388607)
+ 312 compressed objects within 4 object streams
  85 named destinations out of 1000 (max. 500000)
  41201 words of extra memory for PDF output out of 42996 (max. 10000000)
 

@@ -24,7 +24,7 @@
 \contentsline {subsection}{\numberline {4.9}La part multijugador del joc}{10}{subsection.4.9}%
 \contentsline {subsection}{\numberline {4.10}Ping i sincronització del rellotge}{11}{subsection.4.10}%
 \contentsline {section}{\numberline {5}Com es connecten els dos mòduls}{11}{section.5}%
-\contentsline {section}{\numberline {6}Proves i qualitat}{11}{section.6}%
+\contentsline {section}{\numberline {6}Proves i qualitat}{12}{section.6}%
 \contentsline {section}{\numberline {7}Distribució de tasques}{12}{section.7}%
 \contentsline {section}{\numberline {8}Enllaços}{13}{section.8}%
 \contentsline {section}{\numberline {9}Limitacions i treball futur}{13}{section.9}%
